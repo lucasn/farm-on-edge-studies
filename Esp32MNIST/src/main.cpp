@@ -1,4 +1,8 @@
 #include <Arduino.h>
+#include <Wire.h>
+#include <Adafruit_GFX.h>
+#include <Adafruit_SSD1306.h>
+
 #include "tensorflow/lite/micro/all_ops_resolver.h"
 #include "tensorflow/lite/micro/micro_error_reporter.h"
 #include "tensorflow/lite/micro/micro_interpreter.h"
@@ -6,21 +10,47 @@
 
 #include "model_data.h"
 
+#define OLED_SDA 4
+#define OLED_SCL 15
+#define OLED_RST 16
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+
+Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RST);
 namespace {
   tflite::ErrorReporter* error_reporter = nullptr;
   const tflite::Model* model = nullptr;
   tflite::MicroInterpreter* interpreter = nullptr;
   TfLiteTensor* input = nullptr;
   TfLiteTensor* output = nullptr;
-  int inference_count = 0;
 
   constexpr int kTensorArenaSize = 10 * 1024;
   uint8_t tensor_arena[kTensorArenaSize];
+
 }
 
 void setup() {
   Serial.begin(9600);
   while (!Serial);
+
+  //reset OLED display via software
+  pinMode(OLED_RST, OUTPUT);
+  digitalWrite(OLED_RST, LOW);
+  delay(20);
+  digitalWrite(OLED_RST, HIGH);
+
+  Wire.begin(OLED_SDA, OLED_SCL);
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, 0x3c, false, false)) {
+    Serial.println("Fail when starting up the display");
+    while (true);
+  }
+
+  display.setTextColor(WHITE);
+  display.setTextSize(1);
+  display.setCursor(0,0);
+  display.clearDisplay();
+  display.display();
 
   static tflite::MicroErrorReporter micro_error_reporter;
   error_reporter = &micro_error_reporter;
@@ -79,6 +109,11 @@ void loop() {
         input->data.f[i] = image[i - 1];   
       }
 
+      display.clearDisplay();
+      display.setCursor(0,0);
+      display.println("Running model...");
+      display.display();
+
       int start = millis();
 
       TfLiteStatus invoke_status = interpreter->Invoke();
@@ -90,6 +125,8 @@ void loop() {
       }
 
       int end = millis();
+
+      display.println(String(end - start) + " milliseconds");
 
       Serial.println("Execution time: " + String(end - start) + " milliseconds");
 
@@ -103,5 +140,7 @@ void loop() {
         }
       }
       Serial.println("Digit: " + String(digit));
+      display.println("Digit: " + String(digit));
+      display.display();
     }
 }
