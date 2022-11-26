@@ -1,14 +1,13 @@
 import paho.mqtt.client as mqtt
-from random import randrange, uniform
 import time
+import os
 
-mqtt_broker = '192.168.0.8'
+broker_ip = os.environ['broker_ip']
+broker_port = int(os.environ['broker_port'])
 
-client = mqtt.Client('temperature')
-client.connect(mqtt_broker)
+client = mqtt.Client('fog')
+client.connect(broker_ip, broker_port)
 
 while True:
-    randNumber = uniform(20.0, 21.0)
-    client.publish("TEMPERATURE", randNumber)
-    print("Just published " + str(randNumber) + " to topic TEMPERATURE")
+    client.publish("messages", os.environ['broker_message'].encode('utf-8'))
     time.sleep(1)
