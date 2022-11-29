@@ -43,21 +43,15 @@ services:
     networks:
       - fog-network
 
-  client:
-    container_name: client
-    build: client/
-    environment:
-      - broker_ip=192.168.0.8
-      - broker_port=1883
-    networks:
-      - fog-network
-
   gateway:
     container_name: gateway
     build: gateway/
     environment:
       - broker_ip=192.168.0.8
-      - broker_ports="1883 1884"
+      - broker_ports=1883 1884
+      - fogs_uplink=100 170
+      - fogs_latency=50 110
+      - fogs_number=2
     networks:
       - fog-network
 
