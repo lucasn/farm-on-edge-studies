@@ -1,0 +1,74 @@
+version: "3.7"
+
+services:
+  fog_0:
+    container_name: fog_0
+    build: fog/
+    networks:
+      - fog-network
+    environment:
+      - fog_id=0
+    depends_on:
+      - "mosquitto"
+
+  fog_1:
+    container_name: fog_1
+    build: fog/
+    networks:
+      - fog-network
+    environment:
+      - fog_id=1
+    depends_on:
+      - "fog_0"
+
+  fog_2:
+    container_name: fog_2
+    build: fog/
+    networks:
+      - fog-network
+    environment:
+      - fog_id=2
+    depends_on:
+      - "fog_1"
+
+  fog_3:
+    container_name: fog_3
+    build: fog/
+    networks:
+      - fog-network
+    environment:
+      - fog_id=3
+    depends_on:
+      - "fog_2"
+
+  cloud:
+    container_name: cloud
+    build: cloud/
+    networks:
+      - fog-network
+    depends_on:
+      - "mosquitto"
+
+  mosquitto:
+    container_name: mosquitto
+    image: eclipse-mosquitto:2
+    volumes:
+      - ./mosquitto/:/mosquitto/config/:ro
+    ports:
+      - 1883:1883
+      - 9001:9001
+    networks:
+      - fog-network
+
+  client:
+    container_name: client
+    build: client/
+    networks:
+      - fog-network
+    depends_on:
+      - "fog_3"
+
+networks:
+  fog-network:
+    driver: bridge
+    name: fog-network
