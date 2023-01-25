@@ -4,7 +4,7 @@ from time import sleep
 from random import randint
 import concurrent.futures
 
-QNT_CLIENTS = 30
+QNT_CLIENTS = 5
 
 def main():
     client = mqtt.Client(clean_session=True)

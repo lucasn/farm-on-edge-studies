@@ -5,11 +5,13 @@ from copy import deepcopy
 from random import randint
 from time import sleep, time
 from threading import Thread
+from json import dumps
 
 from asymmetric_auction import hold_auction
-from config import BROKER_IP, BROKER_PORT
 
 FOG_ID = int(os.environ['fog_id'])
+BROKER_PORT = int(os.environ['BROKER_PORT'])
+BROKER_IP = os.environ['BROKER_IP']
 latency_table = []
 fogs_number = 0
 
@@ -19,6 +21,7 @@ def main():
     global latency_table, fogs_number
 
     print(f'Id da fog atual: {FOG_ID}')
+    print(BROKER_PORT)
 
     fogs_number, latency_table = retrieve_latencies_mapping(FOG_ID)
 
@@ -79,6 +82,11 @@ def run_auction(client):
 def on_message(client, userdata, message):
     global messages, latency_table
 
+    data_report_message = {
+        'id': FOG_ID,
+        'data': 'MESSAGE_RECEIVED'
+    }
+
     decoded_message = message.payload.decode("utf-8")
     message_id, message = str(decoded_message).split('#')
 
@@ -88,6 +96,8 @@ def on_message(client, userdata, message):
     if message_id == '0':
         print('Enviando mensagem pra a nuvem')
         client.publish('cloud', message + f' -> fog_{FOG_ID}')
+        data_report_message['details'] = 'REDIRECT'
+        client.publish('data', dumps(data_report_message))
     
     elif message_id == '-1':
         ping_time, fog_source = message.split('@')
@@ -105,6 +115,9 @@ def on_message(client, userdata, message):
         print(f'[*] Latência para {fog_of_ping}: {latency_table[fog_of_ping]} ms')
     else:
         messages.put(decoded_message)
+        data_report_message['details'] = 'DIRECT'
+        client.publish('data', dumps(data_report_message))
+
 
 
 def on_connect(client, userdata, flags, rc):
