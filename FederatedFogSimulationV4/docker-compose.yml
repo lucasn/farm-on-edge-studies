@@ -83,6 +83,9 @@ services:
       - fog-network
     environment:
       - NUMBER_OF_FOGS=4
+      - BROKER_IP=${BROKER_IP}
+      - BROKER_PORT=${BROKER_PORT}
+      - SIMULATION_TIME=${SIMULATION_TIME}
     volumes:
       - ./data_collector:/data_collector
     depends_on:
