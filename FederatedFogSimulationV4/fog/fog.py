@@ -6,10 +6,11 @@ from random import randint
 from time import sleep, time
 from threading import Thread
 from json import dumps
+import docker
 
 from asymmetric_auction import hold_auction
 
-FOG_ID = int(os.environ['fog_id'])
+FOG_ID = None
 BROKER_PORT = int(os.environ['BROKER_PORT'])
 BROKER_IP = os.environ['BROKER_IP']
 latency_table = []
@@ -18,30 +19,50 @@ fogs_number = 0
 messages = Queue()
 
 def main():
-    global latency_table, fogs_number
+    initialize()
 
-    print(f'Id da fog atual: {FOG_ID}')
-    print(BROKER_PORT)
-
-    fogs_number, latency_table = retrieve_latencies_mapping(FOG_ID)
-
-    print(latency_table)
-    print(f'Número de fogs: {fogs_number}')
-
-    client = mqtt.Client(clean_session=True)
-    client.on_connect=on_connect
-    client.on_message=on_message
-
-    client.connect(BROKER_IP, BROKER_PORT)
+    client = connect_to_broker(BROKER_IP, BROKER_PORT)
     client.subscribe(f'fog_{FOG_ID}')
 
     auction = Thread(target=run_auction, args=(client,), daemon=True)
     auction.start()
 
-    ping_thread = Thread(target= ping, args= (client,), daemon= True)
+    ping_thread = Thread(target=ping, args=(client,), daemon=True)
     ping_thread.start()
 
     client.loop_forever()
+
+
+def retrieve_fog_id():
+    container_id = os.environ['HOSTNAME']
+
+    docker_client = docker.from_env()
+
+    for container in docker_client.containers.list():
+        if container_id == container.id[:len(container_id)]:
+            fog_id = container.name.split('-')[2]
+            return int(fog_id)
+        
+    raise Exception('Cannot retrieve container name')
+
+
+def connect_to_broker(host, port):
+    client = mqtt.Client(clean_session=True)
+    client.on_connect=on_connect
+    client.on_message=on_message
+
+    client.connect(host, port)
+
+    return client
+
+
+def initialize():
+    global latency_table, fogs_number, FOG_ID
+
+    FOG_ID = retrieve_fog_id()
+
+    fogs_number, latency_table = retrieve_latencies_mapping(FOG_ID)
+
 
 def run_auction(client):
     global messages, fogs_number, latency_table
@@ -62,7 +83,6 @@ def run_auction(client):
         messages_number = len(auction_messages)
         print(f'Processando {messages_number} mensagens')    
 
-        #actual_latency_table = generate_actual_latency_table(actual_latency_table)
         print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
         actual_latency_table = transform_latency(actual_latency_table)
         print(f'[x] Tabela transformada: {actual_latency_table}')
@@ -163,6 +183,7 @@ def transform_latency(latency_table):
     
     return transformed_latency
 
+
 def ping(client: mqtt.Client):
     global fogs_number, latency_table
     print('[-] Executando ping')
@@ -173,10 +194,12 @@ def ping(client: mqtt.Client):
                 ping_message = f'-1#{time()}@{FOG_ID}'
                 client.publish(f'fog_{i}', ping_message)
 
+
 def response_ping(client: mqtt.Client, fog_source: int, response: str):
     latency_offset = randint(60, 100)
     sleep(latency_offset/1000)
     client.publish(f'fog_{fog_source}', response)
+
 
 if __name__ == '__main__':
     main()

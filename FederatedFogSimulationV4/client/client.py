@@ -1,10 +1,13 @@
 import paho.mqtt.client as mqtt
-from config import BROKER_IP, BROKER_PORT
 from time import sleep
 from random import randint
 import concurrent.futures
+import os
 
-QNT_CLIENTS = 5
+QNT_CLIENTS = os.environ['QUANTITY_CLIENTS']
+
+BROKER_IP = os.environ['BROKER_IP']
+BROKER_PORT = int(os.environ['BROKER_PORT'])
 
 def main():
     client = mqtt.Client(clean_session=True)

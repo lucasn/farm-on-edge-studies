@@ -1,56 +1,23 @@
 version: "3.7"
+name: simulation
 
 services:
-  fog_0:
-    container_name: fog_0
+  fog:
     build: fog/
     networks:
       - fog-network
     environment:
-      - fog_id=0
       - BROKER_IP=${BROKER_IP}
       - BROKER_PORT=${BROKER_PORT}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    deploy:
+      mode: replicated
+      replicas: ${QUANTITY_FOGS}
     depends_on:
       - "mosquitto"
 
-  fog_1:
-    container_name: fog_1
-    build: fog/
-    networks:
-      - fog-network
-    environment:
-      - fog_id=1
-      - BROKER_IP=${BROKER_IP}
-      - BROKER_PORT=${BROKER_PORT}
-    depends_on:
-      - "fog_0"
-
-  fog_2:
-    container_name: fog_2
-    build: fog/
-    networks:
-      - fog-network
-    environment:
-      - fog_id=2
-      - BROKER_IP=${BROKER_IP}
-      - BROKER_PORT=${BROKER_PORT}
-    depends_on:
-      - "fog_1"
-
-  fog_3:
-    container_name: fog_3
-    build: fog/
-    networks:
-      - fog-network
-    environment:
-      - fog_id=3
-      - BROKER_IP=${BROKER_IP}
-      - BROKER_PORT=${BROKER_PORT}
-    depends_on:
-      - "fog_2"
-
   cloud:
-    container_name: cloud
     build: cloud/
     networks:
       - fog-network
@@ -69,12 +36,15 @@ services:
       - fog-network
 
   client:
-    container_name: client
     build: client/
     networks:
       - fog-network
+    environment:
+      - BROKER_IP=${BROKER_IP}
+      - BROKER_PORT=${BROKER_PORT}
+      - QUANTITY_CLIENTS=${QUANTITY_CLIENTS}
     depends_on:
-      - "fog_3"
+      - "fog"
     
   data_collector:
     container_name: data
@@ -82,14 +52,14 @@ services:
     networks:
       - fog-network
     environment:
-      - NUMBER_OF_FOGS=4
+      - NUMBER_OF_FOGS=${QUANTITY_FOGS}
       - BROKER_IP=${BROKER_IP}
       - BROKER_PORT=${BROKER_PORT}
       - SIMULATION_TIME=${SIMULATION_TIME}
     volumes:
       - ./data_collector:/data_collector
     depends_on:
-      - "fog_3"
+      - "fog"
 
 networks:
   fog-network:
