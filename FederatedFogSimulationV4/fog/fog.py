@@ -5,7 +5,7 @@ from copy import deepcopy
 from random import randint
 from time import sleep, time
 from threading import Thread
-from json import dumps
+from json import dumps, loads
 import docker
 
 from asymmetric_auction import hold_auction
@@ -13,8 +13,9 @@ from asymmetric_auction import hold_auction
 FOG_ID = None
 BROKER_PORT = int(os.environ['BROKER_PORT'])
 BROKER_IP = os.environ['BROKER_IP']
-latency_table = []
-fogs_number = 0
+QNT_FOGS = int(os.environ['QUANTITY_FOGS'])
+
+latency_table = [0] * (QNT_FOGS + 1) # we add 1 because we consider that fog 0 is the cloud
 
 messages = Queue()
 
@@ -57,46 +58,54 @@ def connect_to_broker(host, port):
 
 
 def initialize():
-    global latency_table, fogs_number, FOG_ID
+    global FOG_ID
 
     FOG_ID = retrieve_fog_id()
 
-    fogs_number, latency_table = retrieve_latencies_mapping(FOG_ID)
+    map_latencies()
 
 
 def run_auction(client):
-    global messages, fogs_number, latency_table
+    global messages, latency_table
 
     while True:
+        if not messages.empty():
+            actual_latency_table = deepcopy(latency_table)
 
-        while messages.empty():
-            sleep(1)
+            del actual_latency_table[0] # removing the cloud from the auction
 
-        actual_latency_table = deepcopy(latency_table)
+            auction_messages = []
 
-        auction_messages = []
+            # we subtract 1 from QNT_FOGS because we don't want to consider the actual fog in the auction
+            while not messages.empty() and len(auction_messages) < QNT_FOGS - 1:
+                auction_messages.append(messages.get())
+            
+            latency_benefits = []
+            messages_number = len(auction_messages)
+            print(f'Processando {messages_number} mensagens')    
 
-        while not messages.empty() and len(auction_messages) < fogs_number:
-            auction_messages.append(messages.get())
-        
-        latency_benefits = []
-        messages_number = len(auction_messages)
-        print(f'Processando {messages_number} mensagens')    
+            print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
+            actual_latency_table = transform_latency(actual_latency_table)
+            print(f'[x] Tabela transformada: {actual_latency_table}')
 
-        print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
-        actual_latency_table = transform_latency(actual_latency_table)
-        print(f'[x] Tabela transformada: {actual_latency_table}')
+            for i in range(messages_number):
+                for j in range(QNT_FOGS):
+                    latency_benefits.append(actual_latency_table)
 
-        for i in range(messages_number):
-            for j in range(fogs_number):
-                latency_benefits.append(actual_latency_table)
+            # the return for the auction algorithm is a array where the indexes
+            # are the messages are the values in the indexes are the fogs that
+            # match those messages
+            results = hold_auction(QNT_FOGS, messages_number, latency_benefits)
 
-        results = hold_auction(fogs_number, messages_number, latency_benefits)
+            # we add 1 to the destination fog value because the fogs are indexed in 1
+            for message_index, destination_fog in enumerate(results):
+                message = auction_messages[message_index]
 
-        for i, fog in enumerate(results):
-            message_id, message = auction_messages[i].split('#')
-            print(f'Mensagem {i} -> Fog {results[i]}')
-            client.publish(f'fog_{results[i]}', f'0#{message} -> fog {FOG_ID}')
+                message['route'].append(FOG_ID)
+                message['type'] = 'REDIRECT'
+
+                print(f'Enviando mensagem {message_index} para fog {destination_fog + 1}')
+                client.publish(f'fog_{destination_fog + 1}', dumps(message))
 
 
 def on_message(client, userdata, message):
@@ -107,34 +116,42 @@ def on_message(client, userdata, message):
         'data': 'MESSAGE_RECEIVED'
     }
 
-    decoded_message = message.payload.decode("utf-8")
-    message_id, message = str(decoded_message).split('#')
+    parsed_message = loads(message.payload)
 
-    print(f'Id da mensagem: {message_id}')
-    print(f'Mensagem: {message}')
-
-    if message_id == '0':
+    if parsed_message['type'] == 'REDIRECT':
         print('Enviando mensagem pra a nuvem')
-        client.publish('cloud', message + f' -> fog_{FOG_ID}')
+
+        parsed_message['route'].append(FOG_ID)
+        client.publish('cloud', dumps(parsed_message))
+
         data_report_message['details'] = 'REDIRECT'
         client.publish('data', dumps(data_report_message))
     
-    elif message_id == '-1':
-        ping_time, fog_source = message.split('@')
-        response = f'-2#{ping_time}@{FOG_ID}'
+    elif parsed_message['type'] == 'PING':
+        ping_time = parsed_message['ping_time']
+        source_fog_id = parsed_message['fog_id']
+
+        response = {
+            'type': 'PING_RESPONSE',
+            'fog_id': FOG_ID,
+            'ping_time': ping_time
+        }
         
-        response_thread = Thread(target= response_ping, args= (client, fog_source, response))
+        response_thread = Thread(target=response_ping, args=(client, source_fog_id, dumps(response)))
         response_thread.start()
     
-    elif message_id == '-2':
-        before = float(message.split('@')[0])
-        fog_of_ping = int(message.split('@')[1])
-        now = time()
+    elif parsed_message['type'] == 'PING_RESPONSE':
+        start_time = parsed_message['ping_time']
+        destination_fog = parsed_message['fog_id']
+        end_time = time()
 
-        latency_table[fog_of_ping] = int( 1000*(now - before) )
-        print(f'[*] Latência para {fog_of_ping}: {latency_table[fog_of_ping]} ms')
+        latency_table[destination_fog] = int( 1000*(end_time - start_time) )
+
+        print(f'[*] Latência para {destination_fog}: {latency_table[destination_fog]} ms')
+
     else:
-        messages.put(decoded_message)
+        print(f'[x] Mensagem recebida para leilão')
+        messages.put(parsed_message)
         data_report_message['details'] = 'DIRECT'
         client.publish('data', dumps(data_report_message))
 
@@ -147,28 +164,19 @@ def on_connect(client, userdata, flags, rc):
             print("Failed to connect, return code %d\n", rc)
 
 
-def retrieve_latencies_mapping(fog_id):
-    latency_file = open('./latency_table.txt', 'r')
-    fogs_number, lines_number = latency_file.readline().split(' - ')
+def map_latencies():
+    with open('./latency_table.json', 'r') as f:
+        latency_file = f.read()
+        latencies = loads(latency_file)['latencies']
 
-    fogs_number = int(fogs_number)
-    lines_number = int(lines_number)
+        for mapping in latencies:
+            fog1, fog2 = mapping['between']
+            latency = mapping['latency']
 
-    latency_table = []
-    inverted_latency_table = []
-    for i in range(fogs_number):
-        latency_table.append(0)
-        inverted_latency_table.append(0)
-
-    for i in range(lines_number):
-        fog1, fog2, latency = latency_file.readline().split(' - ')
-
-        if int(fog1) == fog_id:
-            latency_table[int(fog2)] = int(latency)
-        if int(fog2) == fog_id:
-            latency_table[int(fog1)] = int(latency)
-
-    return fogs_number, latency_table
+            if fog1 == FOG_ID:
+                latency_table[fog2] = latency
+            if fog2 == FOG_ID:
+                latency_table[fog1] = latency
 
 
 def transform_latency(latency_table):
@@ -185,20 +193,25 @@ def transform_latency(latency_table):
 
 
 def ping(client: mqtt.Client):
-    global fogs_number, latency_table
+    global latency_table
     print('[-] Executando ping')
     while True:
         sleep(10)
-        for i in range(fogs_number):
-            if latency_table[i] > 0 and i != FOG_ID:
-                ping_message = f'-1#{time()}@{FOG_ID}'
-                client.publish(f'fog_{i}', ping_message)
+        for i in range(QNT_FOGS):
+            actual_fog = i + 1  # because fog 0 is the cloud
+            if latency_table[actual_fog] > 0 and actual_fog != FOG_ID:
+                ping_message = {
+                    'type': 'PING',
+                    'ping_time': time(),
+                    'fog_id': FOG_ID
+                }
+                client.publish(f'fog_{actual_fog}', dumps(ping_message))
 
 
-def response_ping(client: mqtt.Client, fog_source: int, response: str):
+def response_ping(client: mqtt.Client, source_fog_id: int, response: str):
     latency_offset = randint(60, 100)
     sleep(latency_offset/1000)
-    client.publish(f'fog_{fog_source}', response)
+    client.publish(f'fog_{source_fog_id}', response)
 
 
 if __name__ == '__main__':

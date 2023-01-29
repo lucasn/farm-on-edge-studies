@@ -3,8 +3,11 @@ from time import sleep
 from random import randint
 import concurrent.futures
 import os
+from datetime import datetime
+from json import dumps
 
-QNT_CLIENTS = os.environ['QUANTITY_CLIENTS']
+QNT_CLIENTS = int(os.environ['QUANTITY_CLIENTS'])
+QNT_FOGS = int(os.environ['QUANTITY_FOGS'])
 
 BROKER_IP = os.environ['BROKER_IP']
 BROKER_PORT = int(os.environ['BROKER_PORT'])
@@ -21,11 +24,21 @@ def main():
 
 def send_message(mqtt_client, client_id):
     while True:
-        fog = randint(0, 3)
+        selected_fog = randint(1, QNT_FOGS)
+
         sleep_time = randint(1, 4)
-        generate_linkset_id = randint(0, 10000)
-        print(f'Client {client_id} enviando mensagem para fog {fog}\n', end='')
-        mqtt_client.publish(f'fog_{fog}', f'{generate_linkset_id}#{client_id}')
+
+        message_id = datetime.now().isoformat()
+        message = {
+            'id': message_id,
+            'type': 'DIRECT',
+            'client_id': client_id,
+            'route': [client_id]
+        }
+        message_topic = f'fog_{selected_fog}'
+
+        print(f'Cliente {client_id} enviando mensagem para fog {selected_fog}')
+        mqtt_client.publish(message_topic, dumps(message))
         sleep(sleep_time)
 
 

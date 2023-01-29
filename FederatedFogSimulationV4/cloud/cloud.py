@@ -1,7 +1,9 @@
 import paho.mqtt.client as mqtt
+from json import loads
 import os
-from config import BROKER_IP, BROKER_PORT
 
+BROKER_IP = os.environ['BROKER_IP']
+BROKER_PORT = int(os.environ['BROKER_PORT'])
 
 def main():
     client = mqtt.Client(clean_session=True)
@@ -20,7 +22,7 @@ def on_connect(client, userdata, flags, rc):
             print("Failed to connect, return code %d\n", rc)
 
 def on_message(client, userdata, message):
-    print(f'Mensagem recebida: {str(message.payload.decode("utf-8"))}')
+    print(f'Mensagem recebida: {loads(message.payload)}')
 
 if __name__ == '__main__':
     main()

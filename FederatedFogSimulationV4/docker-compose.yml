@@ -9,6 +9,7 @@ services:
     environment:
       - BROKER_IP=${BROKER_IP}
       - BROKER_PORT=${BROKER_PORT}
+      - QUANTITY_FOGS=${QUANTITY_FOGS}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
@@ -19,6 +20,9 @@ services:
 
   cloud:
     build: cloud/
+    environment:
+      - BROKER_IP=${BROKER_IP}
+      - BROKER_PORT=${BROKER_PORT}
     networks:
       - fog-network
     depends_on:
@@ -43,6 +47,7 @@ services:
       - BROKER_IP=${BROKER_IP}
       - BROKER_PORT=${BROKER_PORT}
       - QUANTITY_CLIENTS=${QUANTITY_CLIENTS}
+      - QUANTITY_FOGS=${QUANTITY_FOGS}
     depends_on:
       - "fog"
     
