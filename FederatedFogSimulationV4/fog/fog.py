@@ -4,9 +4,10 @@ from queue import Queue
 from copy import deepcopy
 from random import randint
 from time import sleep, time
-from threading import Thread
+from threading import Thread, Timer
 from json import dumps, loads
 import docker
+import psutil
 
 from asymmetric_auction import hold_auction
 
@@ -17,6 +18,8 @@ QNT_FOGS = int(os.environ['QUANTITY_FOGS'])
 
 latency_table = [0] * (QNT_FOGS + 1) # we add 1 because we consider that fog 0 is the cloud
 
+cpu_times_counter = 1
+
 messages = Queue()
 
 def main():
@@ -24,6 +27,7 @@ def main():
 
     client = connect_to_broker(BROKER_IP, BROKER_PORT)
     client.subscribe(f'fog_{FOG_ID}')
+    client.subscribe('start')
 
     auction = Thread(target=run_auction, args=(client,), daemon=True)
     auction.start()
@@ -45,6 +49,23 @@ def retrieve_fog_id():
             return int(fog_id)
         
     raise Exception('Cannot retrieve container name')
+
+
+def report_cpu_usage(client: mqtt.Client):
+    global cpu_times_counter
+
+    print('Enviando consumo de cpu')
+
+    message = {
+        'id': FOG_ID,
+        'data': 'CPU_USAGE',
+        'second': cpu_times_counter,
+        'cpu_usage': psutil.cpu_percent(interval=0.1) # using the minimum interval recommended by the library
+    }
+
+    client.publish('data', dumps(message))
+
+    cpu_times_counter += 1
 
 
 def connect_to_broker(host, port):
@@ -69,7 +90,7 @@ def run_auction(client):
     global messages, latency_table
 
     while True:
-        if messages.empty():
+        while messages.empty():
             sleep(1)
 
         actual_latency_table = deepcopy(latency_table)
@@ -77,6 +98,9 @@ def run_auction(client):
         del actual_latency_table[0] # removing the cloud from the auction
 
         auction_messages = []
+
+        while not messages.empty() and len(auction_messages) < QNT_FOGS:
+            auction_messages.append(messages.get())
 
         # we subtract 1 from QNT_FOGS because we don't want to consider the actual fog in the auction
         while not messages.empty() and len(auction_messages) < QNT_FOGS - 1:
@@ -112,6 +136,11 @@ def run_auction(client):
 
 def on_message(client, userdata, message):
     global messages, latency_table
+
+    if message.topic == 'start':
+        cpu_usage_timer = RepeatTimer(interval=1, function=report_cpu_usage, args=(client,))
+        cpu_usage_timer.start()
+        return
 
     data_report_message = {
         'id': FOG_ID,
@@ -215,6 +244,10 @@ def response_ping(client: mqtt.Client, source_fog_id: int, response: str):
     sleep(latency_offset/1000)
     client.publish(f'fog_{source_fog_id}', response)
 
+class RepeatTimer(Timer):  
+    def run(self):  
+        while not self.finished.wait(self.interval):  
+            self.function(*self.args,**self.kwargs) 
 
 if __name__ == '__main__':
     main()

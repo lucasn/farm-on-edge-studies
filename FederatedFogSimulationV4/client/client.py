@@ -22,15 +22,11 @@ def main():
 
     client.connect(BROKER_IP, BROKER_PORT)
     client.subscribe('client')
+    client.subscribe('start')
 
-    client_loop = threading.Thread(target=run_client_loop, args=(client,))
-    client_loop.start()
+    client.loop_forever()
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=QNT_CLIENTS) as executor:
-        for i in range(QNT_CLIENTS):
-            executor.submit(send_message, mqtt_client=client, client_id=(i + 1))
         
-
 def send_message(mqtt_client, client_id):
     while True:
         selected_fog = randint(1, QNT_FOGS)
@@ -54,7 +50,17 @@ def send_message(mqtt_client, client_id):
         sleep(sleep_time)
 
 
+def create_client_threads(client: mqtt.Client):
+    with concurrent.futures.ThreadPoolExecutor(max_workers=QNT_CLIENTS) as executor:
+        for i in range(QNT_CLIENTS):
+            executor.submit(send_message, mqtt_client=client, client_id=(i + 1))
+
+
 def on_message(client, userdata, message):
+    if message.topic == 'start':
+        client_thread = threading.Thread(target=create_client_threads, args=(client,))
+        client_thread.start()
+
     parsed_message = loads(message.payload)
 
     start_time = messages_sent_time[parsed_message['id']]
@@ -72,9 +78,6 @@ def on_connect(client, userdata, flags, rc):
         else:
             print("Failed to connect, return code %d\n", rc)
 
-
-def run_client_loop(client):
-    client.loop_forever()
 
 if __name__ == '__main__':
     main()
