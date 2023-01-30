@@ -49,6 +49,7 @@ def on_message(client, userdata, message):
                 redirect_messages_counter[parsed_message['id'] - 1] += 1
 
         if parsed_message['data'] == 'CPU_USAGE':
+            print(parsed_message)
             cpu_usage[parsed_message['id'] - 1].append(parsed_message['cpu_usage'])
 
 
@@ -131,9 +132,10 @@ def generate_figures():
 
     # TODO: melhorar esse crime
     plt.figure()
-    x = [i + 1 for i in range(len(cpu_usage[0]))]
-    x_agora_vai = [x for i in range(QNT_FOGS)]
-    plt.plot(x_agora_vai, cpu_usage)
+    print(cpu_usage)
+    for i in range(QNT_FOGS):
+        x = [j+1 for j in range(len(cpu_usage[i]))]
+        plt.plot(x, cpu_usage[i])
     plt.legend([f'Fog {i + 1}' for i in range(QNT_FOGS)])
     plt.xlabel('Seconds')
     plt.ylabel('CPU Usage')
