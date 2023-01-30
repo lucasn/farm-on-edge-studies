@@ -23,6 +23,7 @@ def on_connect(client, userdata, flags, rc):
 
 def on_message(client, userdata, message):
     print(f'Mensagem recebida: {loads(message.payload)}')
+    client.publish('client', message.payload)
 
 if __name__ == '__main__':
     main()

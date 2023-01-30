@@ -69,43 +69,45 @@ def run_auction(client):
     global messages, latency_table
 
     while True:
-        if not messages.empty():
-            actual_latency_table = deepcopy(latency_table)
+        if messages.empty():
+            sleep(1)
 
-            del actual_latency_table[0] # removing the cloud from the auction
+        actual_latency_table = deepcopy(latency_table)
 
-            auction_messages = []
+        del actual_latency_table[0] # removing the cloud from the auction
 
-            # we subtract 1 from QNT_FOGS because we don't want to consider the actual fog in the auction
-            while not messages.empty() and len(auction_messages) < QNT_FOGS - 1:
-                auction_messages.append(messages.get())
-            
-            latency_benefits = []
-            messages_number = len(auction_messages)
-            print(f'Processando {messages_number} mensagens')    
+        auction_messages = []
 
-            print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
-            actual_latency_table = transform_latency(actual_latency_table)
-            print(f'[x] Tabela transformada: {actual_latency_table}')
+        # we subtract 1 from QNT_FOGS because we don't want to consider the actual fog in the auction
+        while not messages.empty() and len(auction_messages) < QNT_FOGS - 1:
+            auction_messages.append(messages.get())
+        
+        latency_benefits = []
+        messages_number = len(auction_messages)
+        print(f'Processando {messages_number} mensagens')    
 
-            for i in range(messages_number):
-                for j in range(QNT_FOGS):
-                    latency_benefits.append(actual_latency_table)
+        print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
+        actual_latency_table = transform_latency(actual_latency_table)
+        print(f'[x] Tabela transformada: {actual_latency_table}')
 
-            # the return for the auction algorithm is a array where the indexes
-            # are the messages are the values in the indexes are the fogs that
-            # match those messages
-            results = hold_auction(QNT_FOGS, messages_number, latency_benefits)
+        for i in range(messages_number):
+            for j in range(QNT_FOGS):
+                latency_benefits.append(actual_latency_table)
 
-            # we add 1 to the destination fog value because the fogs are indexed in 1
-            for message_index, destination_fog in enumerate(results):
-                message = auction_messages[message_index]
+        # the return for the auction algorithm is a array where the indexes
+        # are the messages are the values in the indexes are the fogs that
+        # match those messages
+        results = hold_auction(QNT_FOGS, messages_number, latency_benefits)
 
-                message['route'].append(FOG_ID)
-                message['type'] = 'REDIRECT'
+        # we add 1 to the destination fog value because the fogs are indexed in 1
+        for message_index, destination_fog in enumerate(results):
+            message = auction_messages[message_index]
 
-                print(f'Enviando mensagem {message_index} para fog {destination_fog + 1}')
-                client.publish(f'fog_{destination_fog + 1}', dumps(message))
+            message['route'].append(FOG_ID)
+            message['type'] = 'REDIRECT'
+
+            print(f'Enviando mensagem {message_index} para fog {destination_fog + 1}')
+            client.publish(f'fog_{destination_fog + 1}', dumps(message))
 
 
 def on_message(client, userdata, message):
