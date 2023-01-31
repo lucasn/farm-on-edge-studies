@@ -10,6 +10,7 @@ import docker
 import psutil
 from socket import gethostbyname
 from processing import process
+from ping import ping
 
 from asymmetric_auction import hold_auction
 
@@ -32,7 +33,7 @@ def main():
     auction = Thread(target=run_auction, args=(client,), daemon=True)
     auction.start()
 
-    ping_thread = Thread(target=ping, args=(client,), daemon=True)
+    ping_thread = Thread(target=execute_ping, args=(client,), daemon=True)
     ping_thread.start()
 
     client.loop_forever()
@@ -146,29 +147,7 @@ def on_message(client, userdata, message):
     
     if parsed_message['type'] in ['DIRECT', 'REDIRECT']:
         handle_message(client, parsed_message)
-
-    elif parsed_message['type'] == 'PING':
-        print('Ping recebido')
-        ping_time = parsed_message['ping_time']
-        source_fog_id = parsed_message['fog_id']
-
-        response = {
-            'type': 'PING_RESPONSE',
-            'fog_id': FOG_ID,
-            'ping_time': ping_time
-        }
         
-        response_thread = Thread(target=response_ping, args=(client, source_fog_id, dumps(response)))
-        response_thread.start()
-    
-    elif parsed_message['type'] == 'PING_RESPONSE':
-        start_time = parsed_message['ping_time']
-        destination_fog = parsed_message['fog_id']
-        end_time = time()
-
-        latency_table[destination_fog] = int( 1000*(end_time - start_time) )
-
-        print(f'[*] Latência para {destination_fog}: {latency_table[destination_fog]} ms')
 
 
 def handle_message(client: mqtt.Client, message: dict):
@@ -238,26 +217,17 @@ def transform_latency(latency_table):
     return transformed_latency
 
 
-def ping(client: mqtt.Client):
+def execute_ping(client: mqtt.Client):
     global latency_table
     print('[-] Executando ping')
     while True:
         sleep(10)
         for i in range(QNT_FOGS):
             actual_fog = i + 1  # because fog 0 is the cloud
-            if latency_table[actual_fog] > 0 and actual_fog != FOG_ID:
-                ping_message = {
-                    'type': 'PING',
-                    'ping_time': time(),
-                    'fog_id': FOG_ID
-                }
-                client.publish(f'fog_{actual_fog}', dumps(ping_message))
-
-
-def response_ping(client: mqtt.Client, source_fog_id: int, response: str):
-    latency_offset = randint(60, 100)
-    sleep(latency_offset/1000)
-    client.publish(f'fog_{source_fog_id}', response)
+            if actual_fog != FOG_ID:
+                latency = ping(f'simulation-fog-{i + 1}')
+                latency_table[i + 1] = float(latency)
+                print(f'[*] Latência para {i + 1}: {latency_table[i + 1]} ms')
 
 class RepeatTimer(Timer):  
     def run(self):  

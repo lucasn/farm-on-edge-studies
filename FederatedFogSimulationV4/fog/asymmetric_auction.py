@@ -45,7 +45,7 @@ def hold_auction(n_objects: int, n_persons: int, benefits: list):
         profits[best_object] = benefits[person][best_object] - prices[best_object]
 
         # condition to be a feasible assignment
-        assert benefits[person][best_object] == (prices[best_object] + profits[best_object])
+        assert (benefits[person][best_object] - (prices[best_object] + profits[best_object])) < 0.0001
 
         # assign the best_object to the person and unassign the owner of the object if exists
         assign_person[person] = best_object
