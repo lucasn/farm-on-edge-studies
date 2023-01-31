@@ -8,12 +8,12 @@ from threading import Thread, Timer
 from json import dumps, loads
 import docker
 import psutil
+from socket import gethostbyname
+from processing import process
 
 from asymmetric_auction import hold_auction
 
 FOG_ID = None
-BROKER_PORT = int(os.environ['BROKER_PORT'])
-BROKER_IP = os.environ['BROKER_IP']
 QNT_FOGS = int(os.environ['QUANTITY_FOGS'])
 
 latency_table = [0] * (QNT_FOGS + 1) # we add 1 because we consider that fog 0 is the cloud
@@ -25,7 +25,7 @@ messages = Queue()
 def main():
     initialize()
 
-    client = connect_to_broker(BROKER_IP, BROKER_PORT)
+    client = connect_to_broker(gethostbyname('mosquitto'), 1883)
     client.subscribe(f'fog_{FOG_ID}')
     client.subscribe('start')
 
@@ -60,7 +60,7 @@ def report_cpu_usage(client: mqtt.Client):
         'id': FOG_ID,
         'data': 'CPU_USAGE',
         'second': cpu_times_counter,
-        'cpu_usage': psutil.cpu_percent(interval=0.1) # using the minimum interval recommended by the library
+        'cpu_usage': psutil.cpu_percent(interval=0.5) # using the minimum interval recommended by the library
     }
 
     client.publish('data', dumps(message))
@@ -142,23 +142,13 @@ def on_message(client, userdata, message):
         cpu_usage_timer.start()
         return
 
-    data_report_message = {
-        'id': FOG_ID,
-        'data': 'MESSAGE_RECEIVED'
-    }
-
     parsed_message = loads(message.payload)
-
-    if parsed_message['type'] == 'REDIRECT':
-        print('Enviando mensagem pra a nuvem')
-
-        parsed_message['route'].append(FOG_ID)
-        client.publish('cloud', dumps(parsed_message))
-
-        data_report_message['details'] = 'REDIRECT'
-        client.publish('data', dumps(data_report_message))
     
+    if parsed_message['type'] in ['DIRECT', 'REDIRECT']:
+        handle_message(client, parsed_message)
+
     elif parsed_message['type'] == 'PING':
+        print('Ping recebido')
         ping_time = parsed_message['ping_time']
         source_fog_id = parsed_message['fog_id']
 
@@ -180,12 +170,37 @@ def on_message(client, userdata, message):
 
         print(f'[*] Latência para {destination_fog}: {latency_table[destination_fog]} ms')
 
-    else:
-        print(f'[x] Mensagem recebida para leilão')
-        messages.put(parsed_message)
-        data_report_message['details'] = 'DIRECT'
-        client.publish('data', dumps(data_report_message))
 
+def handle_message(client: mqtt.Client, message: dict):
+    cpu_usage = psutil.cpu_percent(0.1)
+
+    if cpu_usage < 75:
+        process_thread = Thread(target=process_message, args=(client, message))
+        process_thread.start()
+
+    else:
+        if message['type'] == 'DIRECT':
+            print(f'[x] Mensagem recebida para leilão')
+            messages.put(message)
+        
+        else:
+            print('[x] Mensagem enviada para a nuvem')
+            message['route'].append(FOG_ID)
+            client.publish('cloud', dumps(message))
+
+    data_report_message = {
+        'id': FOG_ID,
+        'data': 'MESSAGE_RECEIVED'
+    }
+
+    data_report_message['details'] = message['type']
+    client.publish('data', dumps(data_report_message))
+
+
+def process_message(client: mqtt.Client, message:dict):
+    process(leading_zeros=3, times=5)
+    client.publish('client', dumps(message))
+    print('[x] Mensagem processada')
 
 
 def on_connect(client, userdata, flags, rc):

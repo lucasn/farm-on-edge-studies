@@ -3,13 +3,12 @@ import os
 from json import loads
 from threading import Timer
 from datetime import datetime
+from socket import gethostbyname
 
 import matplotlib.pyplot as plt
 
 
 QNT_FOGS = int(os.environ['QUANTITY_FOGS'])
-BROKER_IP = os.environ['BROKER_IP']
-BROKER_PORT = int(os.environ['BROKER_PORT'])
 SIMULATION_TIME = int(os.environ['SIMULATION_TIME'])
 WARMUP_TIME = float(os.environ['WARMUP_TIME'])
 
@@ -25,7 +24,7 @@ is_collecting_data = True
 def main():
     initialize_metrics_array()
 
-    client = connect_to_broker(BROKER_IP, BROKER_PORT)
+    client = connect_to_broker(gethostbyname('mosquitto'), 1883)
 
     client.subscribe('data')
 
@@ -137,6 +136,7 @@ def generate_figures():
         x = [j+1 for j in range(len(cpu_usage[i]))]
         plt.plot(x, cpu_usage[i])
     plt.legend([f'Fog {i + 1}' for i in range(QNT_FOGS)])
+    plt.ylim([0, 100])
     plt.xlabel('Seconds')
     plt.ylabel('CPU Usage')
     plt.title('CPU Consumption by fog')

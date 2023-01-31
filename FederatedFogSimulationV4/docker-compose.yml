@@ -7,22 +7,20 @@ services:
     networks:
       - fog-network
     environment:
-      - BROKER_IP=${BROKER_IP}
-      - BROKER_PORT=${BROKER_PORT}
       - QUANTITY_FOGS=${QUANTITY_FOGS}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
       mode: replicated
       replicas: ${QUANTITY_FOGS}
+      # resources:
+      #   limits:
+      #     cpus: "1"
     depends_on:
       - "mosquitto"
 
   cloud:
     build: cloud/
-    environment:
-      - BROKER_IP=${BROKER_IP}
-      - BROKER_PORT=${BROKER_PORT}
     networks:
       - fog-network
     depends_on:
@@ -44,8 +42,6 @@ services:
     networks:
       - fog-network
     environment:
-      - BROKER_IP=${BROKER_IP}
-      - BROKER_PORT=${BROKER_PORT}
       - QUANTITY_CLIENTS=${QUANTITY_CLIENTS}
       - QUANTITY_FOGS=${QUANTITY_FOGS}
     depends_on:
@@ -58,8 +54,6 @@ services:
       - fog-network
     environment:
       - QUANTITY_FOGS=${QUANTITY_FOGS}
-      - BROKER_IP=${BROKER_IP}
-      - BROKER_PORT=${BROKER_PORT}
       - SIMULATION_TIME=${SIMULATION_TIME}
       - WARMUP_TIME=${WARMUP_TIME}
     volumes:

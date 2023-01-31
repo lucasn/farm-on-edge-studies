@@ -6,12 +6,10 @@ import os
 from datetime import datetime
 from json import dumps, loads
 import threading
+from socket import gethostbyname
 
 QNT_CLIENTS = int(os.environ['QUANTITY_CLIENTS'])
 QNT_FOGS = int(os.environ['QUANTITY_FOGS'])
-
-BROKER_IP = os.environ['BROKER_IP']
-BROKER_PORT = int(os.environ['BROKER_PORT'])
 
 messages_sent_time = {}
 
@@ -20,7 +18,7 @@ def main():
     client.on_connect=on_connect
     client.on_message=on_message
 
-    client.connect(BROKER_IP, BROKER_PORT)
+    client.connect(gethostbyname('mosquitto'), 1883)
     client.subscribe('client')
     client.subscribe('start')
 
@@ -31,8 +29,6 @@ def send_message(mqtt_client, client_id):
     while True:
         selected_fog = randint(1, QNT_FOGS)
 
-        sleep_time = randint(1, 4)
-
         message_id = datetime.now().isoformat()
         message = {
             'id': message_id,
@@ -42,11 +38,11 @@ def send_message(mqtt_client, client_id):
         }
         message_topic = f'fog_{selected_fog}'
 
-        #print(f'Cliente {client_id} enviando mensagem para fog {selected_fog}')
         mqtt_client.publish(message_topic, dumps(message))
 
         messages_sent_time[message_id] = time()
 
+        sleep_time = randint(1, 4)
         sleep(sleep_time)
 
 
@@ -60,6 +56,7 @@ def on_message(client, userdata, message):
     if message.topic == 'start':
         client_thread = threading.Thread(target=create_client_threads, args=(client,))
         client_thread.start()
+        return
 
     parsed_message = loads(message.payload)
 

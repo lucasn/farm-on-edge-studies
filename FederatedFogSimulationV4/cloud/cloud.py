@@ -1,16 +1,13 @@
 import paho.mqtt.client as mqtt
 from json import loads
-import os
-
-BROKER_IP = os.environ['BROKER_IP']
-BROKER_PORT = int(os.environ['BROKER_PORT'])
+from socket import gethostbyname
 
 def main():
     client = mqtt.Client(clean_session=True)
     client.on_connect=on_connect
     client.on_message=on_message
 
-    client.connect(BROKER_IP, BROKER_PORT)
+    client.connect(gethostbyname('mosquitto'), 1883)
     client.subscribe(f'cloud')
 
     client.loop_forever()
