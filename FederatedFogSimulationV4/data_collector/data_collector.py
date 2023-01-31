@@ -1,37 +1,123 @@
-import paho.mqtt.client as mqtt
-import os
-from json import loads
-from threading import Timer
-from datetime import datetime
 from socket import gethostbyname
+from datetime import datetime, timedelta
+from threading import Timer, Thread
+from json import loads
+import os
+from time import sleep
+from pprint import PrettyPrinter
 
+import paho.mqtt.client as mqtt
 import matplotlib.pyplot as plt
+import docker
 
 
 QNT_FOGS = int(os.environ['QUANTITY_FOGS'])
 SIMULATION_TIME = int(os.environ['SIMULATION_TIME'])
 WARMUP_TIME = float(os.environ['WARMUP_TIME'])
 
-received_messages_counter = []
-direct_messages_counter = []
-redirect_messages_counter = []
+received_messages_counter = [0 for i in range(QNT_FOGS + 1)]
+direct_messages_counter = [0 for i in range(QNT_FOGS + 1)]
+redirect_messages_counter = [0 for i in range(QNT_FOGS + 1)]
 
 cpu_usage = [[] for i in range(QNT_FOGS)]
+cpu_usage_from_docker = [[] for i in range(QNT_FOGS + 1)]
+cpu_usage_time_reference = []
 
 is_collecting_data = True
 
 
 def main():
-    initialize_metrics_array()
-
     client = connect_to_broker(gethostbyname('mosquitto'), 1883)
 
     client.subscribe('data')
 
+    t = Thread(target=collect_cpu_usage_from_docker)
+    t.start()
+
     timer = Timer(WARMUP_TIME, start_simulation, args=(client, ))
     timer.start()
     
+    collect_cpu_usage_from_docker()
+
     client.loop_forever()
+
+
+def collect_cpu_usage_from_docker():
+    docker_client = docker.from_env()
+
+    containers = docker_client.containers.list()
+    streams = [None for i in range(QNT_FOGS)]
+    for container in containers:
+        if container.name.find('simulation-fog') != -1:
+            fog_id = int(container.name.split('-')[2])
+            streams[fog_id - 1] = container.stats(decode=True)
+
+
+    for i, stream in enumerate(streams):
+        if i == 0:
+            Thread(target=collect_container_time_and_cpu_usage, args=(i,stream)).start()
+        else:
+            Thread(target=collect_container_cpu_usage, args=(i, stream)).start()
+
+            
+def collect_container_cpu_usage(fog_id, stats_stream):
+    global cpu_usage_from_docker
+
+    next(stats_stream)
+    while True:
+        if is_collecting_data:
+            stats = next(stats_stream)
+
+            online_cpus = stats['cpu_stats']['online_cpus']
+            delta_container = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+
+            delta_system = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+            cpu_percent = (delta_container / delta_system) * online_cpus * 100
+
+            cpu_usage_from_docker[fog_id + 1].append(cpu_percent)
+
+
+
+def collect_container_time_and_cpu_usage(fog_id, stats_stream):
+    global cpu_usage_from_docker, cpu_usage_time_reference
+
+    time_reference = next(stats_stream)['read']
+    time_reference = sanitize_docker_stats_timestamp(time_reference)
+    time_reference_delta =  timedelta(
+                hours=time_reference.hour, 
+                minutes=time_reference.minute, 
+                seconds=time_reference.second, 
+                microseconds=time_reference.microsecond
+            )
+
+    while True:
+        if is_collecting_data:
+            stats = next(stats_stream)
+
+            online_cpus = stats['cpu_stats']['online_cpus']
+            delta_container = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+
+            delta_system = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+            cpu_percent = (delta_container / delta_system) * online_cpus * 100
+
+            cpu_usage_from_docker[fog_id + 1].append(cpu_percent)
+
+            actual_time = stats['read']
+            actual_time = sanitize_docker_stats_timestamp(actual_time)
+            actual_time_delta =  timedelta(
+                hours=actual_time.hour, 
+                minutes=actual_time.minute, 
+                seconds=actual_time.second, 
+                microseconds=actual_time.microsecond
+            )
+
+            # (td / timedelta(milliseconds=1)) converts to milliseconds
+            cpu_usage_time_reference.append((actual_time_delta - time_reference_delta) / timedelta(milliseconds=1))
+
+
+def sanitize_docker_stats_timestamp(timestamp: str):
+    milliseconds_index = timestamp.find('.')
+    return datetime.fromisoformat(timestamp[:milliseconds_index + 7])
 
 
 def on_message(client, userdata, message):
@@ -39,16 +125,15 @@ def on_message(client, userdata, message):
         parsed_message = loads(message.payload)
         
         if parsed_message['data'] == 'MESSAGE_RECEIVED':
-            received_messages_counter[parsed_message['id'] - 1] += 1
+            received_messages_counter[parsed_message['id']] += 1
 
             if parsed_message['details'] == 'DIRECT':
-                direct_messages_counter[parsed_message['id'] - 1] += 1
+                direct_messages_counter[parsed_message['id']] += 1
             
             else:
-                redirect_messages_counter[parsed_message['id'] - 1] += 1
+                redirect_messages_counter[parsed_message['id']] += 1
 
-        if parsed_message['data'] == 'CPU_USAGE':
-            print(parsed_message)
+        elif parsed_message['data'] == 'CPU_USAGE':
             cpu_usage[parsed_message['id'] - 1].append(parsed_message['cpu_usage'])
 
 
@@ -66,17 +151,6 @@ def connect_to_broker(host, port):
 
     client.connect(host, port)
     return client
-
-
-def initialize_metrics_array():
-    global received_messages_counter
-    global direct_messages_counter
-    global redirect_messages_counter
-
-    for i in range(QNT_FOGS):
-        received_messages_counter.append(0)
-        direct_messages_counter.append(0)
-        redirect_messages_counter.append(0)
 
 
 def start_simulation(client: mqtt.Client):
@@ -99,11 +173,13 @@ def finish_simulation(client: mqtt.Client):
 
 
 def generate_figures():
+    global cpu_usage_from_docker, cpu_usage_time_reference
+
     print('Generating figures...')
 
-    fogs_labels = []
+    fogs_labels = ['Cloud']
     for i in range(QNT_FOGS):
-        fogs_labels.append(f'Fog {i}')
+        fogs_labels.append(f'Fog {i + 1}')
     
     results_path = './results'
     if not os.path.exists(results_path):
@@ -124,20 +200,19 @@ def generate_figures():
     plt.savefig(f'{results_path}/direct_messages - {timestamp}.png')
 
     plt.figure()
-    plt.bar(fogs_labels, received_messages_counter)
+    plt.bar(fogs_labels, redirect_messages_counter)
     plt.title('Number of redirected messages received')
     plt.ylabel('Quantity')
     plt.savefig(f'{results_path}/redirect_messages - {timestamp}.png')
 
     # TODO: melhorar esse crime
     plt.figure()
-    print(cpu_usage)
+    # print(cpu_usage)
     for i in range(QNT_FOGS):
-        x = [j+1 for j in range(len(cpu_usage[i]))]
-        plt.plot(x, cpu_usage[i])
+        plt.plot(cpu_usage_time_reference, cpu_usage_from_docker[i + 1])
     plt.legend([f'Fog {i + 1}' for i in range(QNT_FOGS)])
     plt.ylim([0, 100])
-    plt.xlabel('Seconds')
+    plt.xlabel('Milliseconds')
     plt.ylabel('CPU Usage')
     plt.title('CPU Consumption by fog')
     plt.savefig(f'{results_path}/cpu_usage - {timestamp}.png')

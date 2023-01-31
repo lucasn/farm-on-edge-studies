@@ -11,6 +11,7 @@ import psutil
 from socket import gethostbyname
 from processing import process
 from ping import ping
+from pprint import PrettyPrinter
 
 from asymmetric_auction import hold_auction
 
@@ -20,6 +21,7 @@ QNT_FOGS = int(os.environ['QUANTITY_FOGS'])
 latency_table = [0] * (QNT_FOGS + 1) # we add 1 because we consider that fog 0 is the cloud
 
 cpu_times_counter = 1
+cpu_usage = 0
 
 messages = Queue()
 
@@ -53,15 +55,17 @@ def retrieve_fog_id():
 
 
 def report_cpu_usage(client: mqtt.Client):
-    global cpu_times_counter
+    global cpu_times_counter, cpu_usage
 
     print('Enviando consumo de cpu')
+
+    cpu_usage = psutil.cpu_percent(interval=0.5)
 
     message = {
         'id': FOG_ID,
         'data': 'CPU_USAGE',
         'second': cpu_times_counter,
-        'cpu_usage': psutil.cpu_percent(interval=0.5) # using the minimum interval recommended by the library
+        'cpu_usage': cpu_usage
     }
 
     client.publish('data', dumps(message))
@@ -147,11 +151,10 @@ def on_message(client, userdata, message):
     
     if parsed_message['type'] in ['DIRECT', 'REDIRECT']:
         handle_message(client, parsed_message)
-        
 
 
 def handle_message(client: mqtt.Client, message: dict):
-    cpu_usage = psutil.cpu_percent(0.1)
+    global cpu_usage
 
     if cpu_usage < 75:
         process_thread = Thread(target=process_message, args=(client, message))

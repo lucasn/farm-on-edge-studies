@@ -58,6 +58,7 @@ services:
       - WARMUP_TIME=${WARMUP_TIME}
     volumes:
       - ./data_collector:/data_collector
+      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       - "fog"
 
