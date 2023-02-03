@@ -68,14 +68,19 @@ def collect_container_cpu_usage(fog_id, stats_stream):
         if is_collecting_data:
             stats = next(stats_stream)
 
-            online_cpus = stats['cpu_stats']['online_cpus']
-            delta_container = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
-
-            delta_system = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
-            cpu_percent = (delta_container / delta_system) * online_cpus * 100
+            cpu_percent = retrieve_cpu_usage_from_docker_stats(stats)
 
             cpu_usage_from_docker[fog_id + 1].append(cpu_percent)
 
+
+def retrieve_cpu_usage_from_docker_stats(stats):
+    online_cpus = stats['cpu_stats']['online_cpus']
+    delta_container = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
+
+    delta_system = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
+    cpu_percent = (delta_container / delta_system) * online_cpus * 100
+    
+    return cpu_percent
 
 
 def collect_container_time_and_cpu_usage(fog_id, stats_stream):
@@ -94,11 +99,7 @@ def collect_container_time_and_cpu_usage(fog_id, stats_stream):
         if is_collecting_data:
             stats = next(stats_stream)
 
-            online_cpus = stats['cpu_stats']['online_cpus']
-            delta_container = stats['cpu_stats']['cpu_usage']['total_usage'] - stats['precpu_stats']['cpu_usage']['total_usage']
-
-            delta_system = stats['cpu_stats']['system_cpu_usage'] - stats['precpu_stats']['system_cpu_usage']
-            cpu_percent = (delta_container / delta_system) * online_cpus * 100
+            cpu_percent = retrieve_cpu_usage_from_docker_stats(stats)
 
             cpu_usage_from_docker[fog_id + 1].append(cpu_percent)
 
@@ -205,14 +206,19 @@ def generate_figures():
     plt.ylabel('Quantity')
     plt.savefig(f'{results_path}/redirect_messages - {timestamp}.png')
 
-    # TODO: melhorar esse crime
+    cpu_usage_time_reference = [v / 1000 for v in cpu_usage_time_reference]
+
+    min_list_length = len(cpu_usage_time_reference)
+    for l in cpu_usage_from_docker[1:]:
+        if len(l) < min_list_length:
+            min_list_length = len(l)
+
     plt.figure()
-    # print(cpu_usage)
     for i in range(QNT_FOGS):
-        plt.plot(cpu_usage_time_reference, cpu_usage_from_docker[i + 1])
+        plt.plot(cpu_usage_time_reference[:min_list_length], cpu_usage_from_docker[i + 1][:min_list_length])
     plt.legend([f'Fog {i + 1}' for i in range(QNT_FOGS)])
     plt.ylim([0, 100])
-    plt.xlabel('Milliseconds')
+    plt.xlabel('Seconds')
     plt.ylabel('CPU Usage')
     plt.title('CPU Consumption by fog')
     plt.savefig(f'{results_path}/cpu_usage - {timestamp}.png')

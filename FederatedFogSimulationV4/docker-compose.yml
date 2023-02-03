@@ -8,6 +8,9 @@ services:
       - fog-network
     environment:
       - QUANTITY_FOGS=${QUANTITY_FOGS}
+      - MESSAGE_PROCESSING_CPU_THRESHOLD=${MESSAGE_PROCESSING_CPU_THRESHOLD}
+      - PROCESS_MESSAGE_FUNCTION_REPEAT=${PROCESS_MESSAGE_FUNCTION_REPEAT}
+      - PROCESS_MESSAGE_LEADING_ZEROS=${PROCESS_MESSAGE_LEADING_ZEROS}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
