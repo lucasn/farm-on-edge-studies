@@ -1,5 +1,5 @@
 import paho.mqtt.client as mqtt
-from json import loads
+from json import loads, dumps
 from socket import gethostbyname
 
 def main():
@@ -21,6 +21,14 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, message):
     print(f'Mensagem recebida: {loads(message.payload)}')
     client.publish('client', message.payload)
+
+    data_report_message = {
+         'id': 0,
+        'data': 'MESSAGE_RECEIVED',
+        'details': 'CLOUD'
+    }
+
+    client.publish('data', dumps(data_report_message))
 
 if __name__ == '__main__':
     main()

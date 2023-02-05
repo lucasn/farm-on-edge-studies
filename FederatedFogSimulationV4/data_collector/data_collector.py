@@ -23,6 +23,11 @@ cpu_usage_from_docker = [[] for i in range(QNT_FOGS + 1)]
 mem_usage_from_docker = [[] for i in range(QNT_FOGS + 1)]
 docker_time_reference = []
 
+response_time_instant = []
+response_time_value = []
+
+simulation_start_timestamp = None
+
 is_collecting_data = True
 
 docker_is_cgroupv1 = False
@@ -162,9 +167,13 @@ def on_message(client, userdata, message):
 
             if parsed_message['details'] == 'DIRECT':
                 direct_messages_counter[parsed_message['id']] += 1
-            
-            else:
+
+            elif parsed_message['details'] == 'REDIRECT':
                 redirect_messages_counter[parsed_message['id']] += 1
+        
+        elif parsed_message['data'] == 'RESPONSE_TIME':
+            response_time_instant.append(parsed_message['timestamp'])
+            response_time_value.append(parsed_message['response_time'])
 
 
 def on_connect(client, userdata, flags, rc):
@@ -184,8 +193,11 @@ def connect_to_broker(host, port):
 
 
 def start_simulation(client: mqtt.Client):
+    global simulation_start_timestamp
     print('Iniciando simulação...')
     client.publish('start')
+
+    simulation_start_timestamp = datetime.now()
 
     timer = Timer(SIMULATION_TIME, finish_simulation, args=(client,))
     timer.daemon = True
@@ -200,6 +212,8 @@ def finish_simulation(client: mqtt.Client):
     generate_figures()
 
     client.disconnect()
+
+    exit(0)
 
 
 def generate_figures():
@@ -223,7 +237,7 @@ def generate_figures():
 
     generate_mem_usage_figure(results_path)
 
-    exit(0)
+    generate_response_time_figure(results_path)
     
 
 def generate_received_messages_figure(fogs_labels, results_path):
@@ -240,7 +254,7 @@ def generate_direct_messages_figure(fogs_labels, results_path):
     timestamp = datetime.now()
 
     fig, ax = plt.subplots()
-    ax.bar(fogs_labels, direct_messages_counter)
+    ax.bar(fogs_labels[1:], direct_messages_counter[1:])
     ax.set_title('Number of direct messages received')
     ax.set_ylabel('Quantity')
     fig.savefig(f'{results_path}/direct_messages - {timestamp}.png')
@@ -250,7 +264,7 @@ def generate_redirect_messages_figure(fogs_labels, results_path):
     timestamp = datetime.now()
 
     fig, ax = plt.subplots()
-    ax.bar(fogs_labels, redirect_messages_counter)
+    ax.bar(fogs_labels[1:], redirect_messages_counter[1:])
     ax.set_title('Number of redirected messages received')
     ax.set_ylabel('Quantity')
     fig.savefig(f'{results_path}/redirect_messages - {timestamp}.png')
@@ -280,6 +294,8 @@ def generate_cpu_usage_figure(results_path):
 def generate_mem_usage_figure(results_path):
     global docker_time_reference, mem_usage_from_docker
 
+    print(response_time_value)
+
     min_list_length = len(docker_time_reference)
     for l in mem_usage_from_docker[1:]:
         if len(l) < min_list_length:
@@ -297,6 +313,44 @@ def generate_mem_usage_figure(results_path):
 
     timestamp = datetime.now()
     fig.savefig(f'{results_path}/mem_usage - {timestamp}.png')
+
+
+def generate_response_time_figure(results_path):
+    global simulation_start_timestamp, response_time_value
+    reference_time =  timedelta(
+        hours=simulation_start_timestamp.hour, 
+        minutes=simulation_start_timestamp.minute, 
+        seconds=simulation_start_timestamp.second, 
+        microseconds=simulation_start_timestamp.microsecond
+    )
+    converted_time = []
+    for timestamp in response_time_instant:
+        object_timestamp = datetime.fromisoformat(timestamp)
+        delta_timestamp =  timedelta(
+            hours=object_timestamp.hour, 
+            minutes=object_timestamp.minute, 
+            seconds=object_timestamp.second, 
+            microseconds=object_timestamp.microsecond
+        )
+        converted_time.append((delta_timestamp - reference_time) / timedelta(seconds=1))
+    
+    fig, ax = plt.subplots()
+    ax.plot(converted_time, response_time_value)
+    ax.set_title('Response Time')
+    ax.set_ylabel('Seconds')
+    fig.savefig(f'{results_path}/response_time - {timestamp}.png')
+
+    fig, ax = plt.subplots()
+    ax.scatter(converted_time, response_time_value)
+    ax.set_title('Response Time')
+    ax.set_ylabel('Seconds')
+    fig.savefig(f'{results_path}/response_time_scatter - {timestamp}.png')
+
+    fig, ax = plt.subplots()
+    ax.bar(converted_time, response_time_value)
+    ax.set_title('Response Time')
+    ax.set_ylabel('Seconds')
+    fig.savefig(f'{results_path}/response_time_bar - {timestamp}.png')
 
 
 if __name__ == '__main__':

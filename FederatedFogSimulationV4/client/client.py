@@ -63,8 +63,15 @@ def on_message(client, userdata, message):
     start_time = messages_sent_time[parsed_message['id']]
 
     if start_time is not None:
-        print(f'Mensagem {parsed_message["id"]} recebida | Tempo de resposta: {time() - start_time} s')
-    
+        response_time = time() - start_time
+        print(f'Mensagem {parsed_message["id"]} recebida | Tempo de resposta: {response_time} s')
+        data_report_message = {
+            'data': 'RESPONSE_TIME',
+            'response_time': response_time,
+            'timestamp': datetime.now().isoformat()
+        }
+        client.publish('data', dumps(data_report_message))
+
     else:
         print('Mensagem inesperada recebida')
 

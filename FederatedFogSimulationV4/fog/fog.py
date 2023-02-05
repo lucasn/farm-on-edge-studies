@@ -54,7 +54,7 @@ def retrieve_this_container():
         if container_id == container.id[:len(container_id)]:
             return container
         
-    raise Exception('Cannot retrieve container name')
+    raise Exception('Cannot retrieve the container')
 
 
 def update_cpu_usage(container):
