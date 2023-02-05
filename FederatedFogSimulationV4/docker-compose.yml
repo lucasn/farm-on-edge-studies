@@ -57,6 +57,7 @@ services:
       - fog-network
     environment:
       - QUANTITY_FOGS=${QUANTITY_FOGS}
+      - QUANTITY_CLIENTS=${QUANTITY_CLIENTS}
       - SIMULATION_TIME=${SIMULATION_TIME}
       - WARMUP_TIME=${WARMUP_TIME}
     volumes:
