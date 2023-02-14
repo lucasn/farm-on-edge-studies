@@ -1,6 +1,6 @@
 import paho.mqtt.client as mqtt
 import os
-from queue import Queue
+from queue import Queue, Empty
 from copy import deepcopy
 from threading import Thread, Timer, Condition, Lock
 from json import dumps, loads
@@ -17,6 +17,7 @@ QUANTITY_FOGS = int(os.environ['QUANTITY_FOGS'])
 MESSAGE_PROCESSING_CPU_THRESHOLD = int(os.environ['MESSAGE_PROCESSING_CPU_THRESHOLD'])
 PROCESS_MESSAGE_LEADING_ZEROS = int(os.environ['PROCESS_MESSAGE_LEADING_ZEROS'])
 PROCESS_MESSAGE_FUNCTION_REPEAT = int(os.environ['PROCESS_MESSAGE_FUNCTION_REPEAT'])
+ACTIVATE_AUCTION = bool(int(os.environ['ACTIVATE_AUCTION']))
 
 latency_table = [0] * (QUANTITY_FOGS + 1) # we add 1 because we consider that fog 0 is the cloud
 cpu_usage = 0.0
@@ -27,6 +28,10 @@ cpu_usage_mutex = Condition()
 message_queue_mutex = Condition()
 
 def main():
+    if ACTIVATE_AUCTION:
+        print("[*] Simulação com leilão")
+    else:
+        print("[*] Simulação sem leilão")
     container = retrieve_this_container()
 
     retrieve_fog_id(container)
@@ -93,56 +98,52 @@ def connect_to_broker(host, port):
     return client
 
 
-# TODO: Review the time between the running of the auction
-def run_auction(client):
+def run_auction(client: mqtt.Client, auction_messages: list):
     global message_queue, latency_table
 
-    while True:
-        while message_queue.empty():
-            sleep(1)
+    actual_latency_table = deepcopy(latency_table)
 
-        actual_latency_table = deepcopy(latency_table)
+    del actual_latency_table[0] # removing the cloud from the auction
+    
+    latency_benefits = []
+    messages_number = len(auction_messages)
+    print(f'Rodando leilão para {messages_number} mensagens')
 
-        del actual_latency_table[0] # removing the cloud from the auction
+    print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
+    actual_latency_table = transform_latency(actual_latency_table)
+    print(f'[x] Tabela transformada: {actual_latency_table}')
 
-        auction_messages = []
+    for i in range(messages_number):
+        for j in range(QUANTITY_FOGS):
+            latency_benefits.append(actual_latency_table)
 
-        # we subtract 1 from QNT_FOGS because we don't want to consider the actual fog in the auction
-        while not message_queue.empty() and len(auction_messages) < QUANTITY_FOGS - 1:
-            auction_messages.append(message_queue.get())
-        
-        latency_benefits = []
-        messages_number = len(auction_messages)
-        print(f'Processando {messages_number} mensagens')    
+    # the return for the auction algorithm is a array where the indexes
+    # are the messages are the values in the indexes are the fogs that
+    # match those messages
+    results = hold_auction(QUANTITY_FOGS, messages_number, latency_benefits)
 
-        print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
-        actual_latency_table = transform_latency(actual_latency_table)
-        print(f'[x] Tabela transformada: {actual_latency_table}')
+    # we add 1 to the destination fog value because the fogs are indexed in 1
+    for message_index, destination_fog in enumerate(results):
+        message = auction_messages[message_index]
 
-        for i in range(messages_number):
-            for j in range(QUANTITY_FOGS):
-                latency_benefits.append(actual_latency_table)
+        message['route'].append(FOG_ID)
+        message['type'] = 'REDIRECT'
 
-        # the return for the auction algorithm is a array where the indexes
-        # are the messages are the values in the indexes are the fogs that
-        # match those messages
-        results = hold_auction(QUANTITY_FOGS, messages_number, latency_benefits)
-
-        # we add 1 to the destination fog value because the fogs are indexed in 1
-        for message_index, destination_fog in enumerate(results):
-            message = auction_messages[message_index]
-
-            message['route'].append(FOG_ID)
-            message['type'] = 'REDIRECT'
-
-            print(f'Enviando mensagem {message_index} para fog {destination_fog + 1}')
-            client.publish(f'fog_{destination_fog + 1}', dumps(message))
+        print(f'Enviando mensagem {message_index} para fog {destination_fog + 1}')
+        client.publish(f'fog_{destination_fog + 1}', dumps(message))
 
 
-def on_message(client, userdata, message):
+def on_message(client: mqtt.Client, userdata, message):
     global message_queue, latency_table, message_queue_mutex
 
     parsed_message = loads(message.payload)
+    data_report_message = {
+        'id': FOG_ID,
+        'data': 'MESSAGE_RECEIVED'
+    }
+    data_report_message['type'] = parsed_message['type']
+
+    client.publish('data', dumps(data_report_message))
     
     if parsed_message['type'] in ['DIRECT', 'REDIRECT']:
         with message_queue_mutex:
@@ -160,9 +161,24 @@ def handle_messages(client: mqtt.Client):
                 qnt_messages = message_queue.qsize()
                 if qnt_messages == 0:
                     message_queue_mutex.wait()
-                elif qnt_messages >= QUANTITY_FOGS - 1:
-                    # rodar leilão
-                    pass
+
+                elif ACTIVATE_AUCTION and qnt_messages >= QUANTITY_FOGS - 1:
+                    auction_messages = []
+                    
+                    for i in range(QUANTITY_FOGS):
+                        try:
+                            message = message_queue.get(block= False)
+                            if message['type'] == 'DIRECT':
+                                auction_messages.append(message)
+                            else:
+                                client.publish('cloud')
+                        except Empty:
+                            break
+                    
+                    if len(auction_messages) > 0:
+                        auction_thread = Thread(target= run_auction, args= (client, auction_messages))
+                        auction_thread.start()
+
                 else:
                     message = message_queue.get()
                     process_thread = Thread(target=process_message, args=(client, message))
@@ -170,8 +186,12 @@ def handle_messages(client: mqtt.Client):
 
         else:
             with cpu_usage_mutex:
-                cpu_usage_mutex.wait_for(cpu_usage < MESSAGE_PROCESSING_CPU_THRESHOLD)
+                cpu_usage_mutex.wait_for(cpu_usage_condition)
 
+
+def cpu_usage_condition():
+    global cpu_usage
+    return cpu_usage < MESSAGE_PROCESSING_CPU_THRESHOLD
 
 def process_message(client: mqtt.Client, message:dict):
     process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=PROCESS_MESSAGE_FUNCTION_REPEAT)

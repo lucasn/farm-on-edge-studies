@@ -11,6 +11,7 @@ services:
       - MESSAGE_PROCESSING_CPU_THRESHOLD=${MESSAGE_PROCESSING_CPU_THRESHOLD}
       - PROCESS_MESSAGE_FUNCTION_REPEAT=${PROCESS_MESSAGE_FUNCTION_REPEAT}
       - PROCESS_MESSAGE_LEADING_ZEROS=${PROCESS_MESSAGE_LEADING_ZEROS}
+      - ACTIVATE_AUCTION=${ACTIVATE_AUCTION}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     deploy:
@@ -60,6 +61,7 @@ services:
       - QUANTITY_CLIENTS=${QUANTITY_CLIENTS}
       - SIMULATION_TIME=${SIMULATION_TIME}
       - WARMUP_TIME=${WARMUP_TIME}
+      - ACTIVATE_AUCTION=${ACTIVATE_AUCTION}
     volumes:
       - ./data_collector:/data_collector
       - /var/run/docker.sock:/var/run/docker.sock

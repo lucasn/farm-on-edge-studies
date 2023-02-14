@@ -15,6 +15,7 @@ QUANTITY_FOGS = int(os.environ['QUANTITY_FOGS'])
 QUANTITY_CLIENTS = int(os.environ['QUANTITY_CLIENTS'])
 SIMULATION_TIME = int(os.environ['SIMULATION_TIME'])
 WARMUP_TIME = float(os.environ['WARMUP_TIME'])
+ACTIVATE_AUCTION = bool(int(os.environ['ACTIVATE_AUCTION']))
 
 received_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
 direct_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
@@ -34,6 +35,11 @@ is_collecting_data = True
 docker_is_cgroupv1 = False
 
 def main():
+    if ACTIVATE_AUCTION:
+        print("[*] Simulação com leilão")
+    else:
+        print("[*] Simulação sem leilão")
+
     check_docker_group_version()
 
     client = connect_to_broker(gethostbyname('mosquitto'), 1883)
@@ -168,10 +174,10 @@ def on_message(client, userdata, message):
         if parsed_message['data'] == 'MESSAGE_RECEIVED':
             received_messages_counter[parsed_message['id']] += 1
 
-            if parsed_message['details'] == 'DIRECT':
+            if parsed_message['type'] == 'DIRECT':
                 direct_messages_counter[parsed_message['id']] += 1
 
-            elif parsed_message['details'] == 'REDIRECT':
+            elif parsed_message['type'] == 'REDIRECT':
                 redirect_messages_counter[parsed_message['id']] += 1
         
         elif parsed_message['data'] == 'RESPONSE_TIME':
@@ -226,15 +232,20 @@ def generate_figures():
     for i in range(QUANTITY_FOGS):
         fogs_labels.append(f'Fog {i + 1}')
     
-    results_path = f'./results/{QUANTITY_FOGS} fogs and {QUANTITY_CLIENTS} clients ({SIMULATION_TIME}s)'
+    timestamp = datetime.now()
+    with_or_without_auction = 'with auction' if ACTIVATE_AUCTION else 'without auction'
+    results_path = f"./results/{QUANTITY_FOGS} fogs and {QUANTITY_CLIENTS} clients {with_or_without_auction} ({SIMULATION_TIME}s)/{timestamp}"
+    
     if not os.path.exists(results_path):
         os.makedirs(results_path)
-
-    generate_received_messages_figure(fogs_labels, results_path)
     
-    generate_direct_messages_figure(fogs_labels, results_path)
+    figure_y_limit = max(received_messages_counter) + 10
 
-    generate_redirect_messages_figure(fogs_labels, results_path)
+    generate_received_messages_figure(fogs_labels, results_path, figure_y_limit)
+    
+    generate_direct_messages_figure(fogs_labels, results_path, figure_y_limit)
+
+    generate_redirect_messages_figure(fogs_labels, results_path, figure_y_limit)
 
     generate_cpu_usage_figure(results_path)
 
@@ -245,34 +256,31 @@ def generate_figures():
     print("Figuras geradas com sucesso!")
     
 
-def generate_received_messages_figure(fogs_labels, results_path):
-    timestamp = datetime.now()
-
+def generate_received_messages_figure(fogs_labels, results_path, y_limit):
     fig, ax = plt.subplots()
     ax.bar(fogs_labels, received_messages_counter)
     ax.set_title(f'Number of total messages received')
     ax.set_ylabel('Quantity')
-    fig.savefig(f'{results_path}/received_messages - {timestamp}.png')
+    ax.set_ylim(0, y_limit)
+    fig.savefig(f'{results_path}/received_messages.png')
 
 
-def generate_direct_messages_figure(fogs_labels, results_path):
-    timestamp = datetime.now()
-
+def generate_direct_messages_figure(fogs_labels, results_path, y_limit):
     fig, ax = plt.subplots()
     ax.bar(fogs_labels[1:], direct_messages_counter[1:])
     ax.set_title('Number of direct messages received')
     ax.set_ylabel('Quantity')
-    fig.savefig(f'{results_path}/direct_messages - {timestamp}.png')
+    ax.set_ylim(0, y_limit)
+    fig.savefig(f'{results_path}/direct_messages.png')
 
 
-def generate_redirect_messages_figure(fogs_labels, results_path):
-    timestamp = datetime.now()
-
+def generate_redirect_messages_figure(fogs_labels, results_path, y_limit):
     fig, ax = plt.subplots()
     ax.bar(fogs_labels[1:], redirect_messages_counter[1:])
     ax.set_title('Number of redirected messages received')
     ax.set_ylabel('Quantity')
-    fig.savefig(f'{results_path}/redirect_messages - {timestamp}.png')
+    ax.set_ylim(0, y_limit)
+    fig.savefig(f'{results_path}/redirect_messages.png')
 
 
 def generate_cpu_usage_figure(results_path):
@@ -292,8 +300,7 @@ def generate_cpu_usage_figure(results_path):
     ax.set_ylabel('CPU Usage')
     ax.set_title('CPU Consumption by fog')
 
-    timestamp = datetime.now()
-    fig.savefig(f'{results_path}/cpu_usage - {timestamp}.png')
+    fig.savefig(f'{results_path}/cpu_usage.png')
 
 
 def generate_mem_usage_figure(results_path):
@@ -313,9 +320,8 @@ def generate_mem_usage_figure(results_path):
     ax.set_xlabel('Seconds')
     ax.set_ylabel('Memory Usage')
     ax.set_title('Memory Consumption by fog')
-
-    timestamp = datetime.now()
-    fig.savefig(f'{results_path}/mem_usage - {timestamp}.png')
+    
+    fig.savefig(f'{results_path}/mem_usage.png')
 
 
 def generate_response_time_figure(results_path):
@@ -325,21 +331,19 @@ def generate_response_time_figure(results_path):
     for timestamp in response_time_instant:
         object_timestamp = datetime.fromisoformat(timestamp)
         delta_timestamp =  datetime_to_timedelta(object_timestamp)
-        converted_time.append((delta_timestamp - reference_time) / timedelta(seconds=1))
-
-    timestamp = datetime.now()
+        converted_time.append((delta_timestamp - reference_time) / timedelta(seconds=1))    
 
     fig, ax = plt.subplots()
     ax.bar(converted_time, response_time_value)
     ax.set_title('Response Time')
     ax.set_ylabel('Seconds')
-    fig.savefig(f'{results_path}/response_time_bar - {timestamp}.png')
+    fig.savefig(f'{results_path}/response_time_bar.png')
 
     fig, ax = plt.subplots()
     ax.scatter(converted_time, response_time_value)
     ax.set_title('Response Time')
     ax.set_ylabel('Seconds')
-    fig.savefig(f'{results_path}/response_time_scatter - {timestamp}.png')
+    fig.savefig(f'{results_path}/response_time_scatter.png')
 
 
 if __name__ == '__main__':

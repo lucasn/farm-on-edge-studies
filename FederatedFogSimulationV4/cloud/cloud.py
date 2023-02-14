@@ -8,7 +8,7 @@ def main():
     client.on_message=on_message
 
     client.connect(gethostbyname('mosquitto'), 1883)
-    client.subscribe(f'cloud')
+    client.subscribe('cloud')
 
     client.loop_forever()
 
@@ -23,9 +23,9 @@ def on_message(client, userdata, message):
     client.publish('client', message.payload)
 
     data_report_message = {
-         'id': 0,
+        'id': 0,
         'data': 'MESSAGE_RECEIVED',
-        'details': 'CLOUD'
+        'type': 'CLOUD'
     }
 
     client.publish('data', dumps(data_report_message))
