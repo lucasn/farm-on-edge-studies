@@ -1,8 +1,8 @@
 import paho.mqtt.client as mqtt
 import os
-from queue import Queue, Empty
+from queue import Queue
 from copy import deepcopy
-from threading import Thread, Timer, Condition, Lock
+from threading import Thread, Timer, Condition
 from json import dumps, loads
 import docker
 from socket import gethostbyname
@@ -99,7 +99,7 @@ def connect_to_broker(host, port):
 
 
 def run_auction(client: mqtt.Client, auction_messages: list):
-    global message_queue, latency_table
+    global latency_table
 
     actual_latency_table = deepcopy(latency_table)
 
@@ -165,15 +165,12 @@ def handle_messages(client: mqtt.Client):
                 elif ACTIVATE_AUCTION and qnt_messages >= QUANTITY_FOGS - 1:
                     auction_messages = []
                     
-                    for i in range(QUANTITY_FOGS):
-                        try:
-                            message = message_queue.get(block= False)
-                            if message['type'] == 'DIRECT':
-                                auction_messages.append(message)
-                            else:
-                                client.publish('cloud')
-                        except Empty:
-                            break
+                    for i in range(QUANTITY_FOGS-1):
+                        message = message_queue.get()
+                        if message['type'] == 'DIRECT':
+                            auction_messages.append(message)
+                        else:
+                            client.publish('cloud', dumps(message))
                     
                     if len(auction_messages) > 0:
                         auction_thread = Thread(target= run_auction, args= (client, auction_messages))

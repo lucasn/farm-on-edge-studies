@@ -27,6 +27,8 @@ services:
     build: cloud/
     networks:
       - fog-network
+    environment:
+      - CLOUD_LATENCY=${CLOUD_LATENCY}
     depends_on:
       - "mosquitto"
 
@@ -59,6 +61,7 @@ services:
     environment:
       - QUANTITY_FOGS=${QUANTITY_FOGS}
       - QUANTITY_CLIENTS=${QUANTITY_CLIENTS}
+      - MESSAGE_PROCESSING_CPU_THRESHOLD=${MESSAGE_PROCESSING_CPU_THRESHOLD}
       - SIMULATION_TIME=${SIMULATION_TIME}
       - WARMUP_TIME=${WARMUP_TIME}
       - ACTIVATE_AUCTION=${ACTIVATE_AUCTION}

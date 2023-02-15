@@ -13,6 +13,7 @@ import docker
 
 QUANTITY_FOGS = int(os.environ['QUANTITY_FOGS'])
 QUANTITY_CLIENTS = int(os.environ['QUANTITY_CLIENTS'])
+MESSAGE_PROCESSING_CPU_THRESHOLD = int(os.environ['MESSAGE_PROCESSING_CPU_THRESHOLD'])
 SIMULATION_TIME = int(os.environ['SIMULATION_TIME'])
 WARMUP_TIME = float(os.environ['WARMUP_TIME'])
 ACTIVATE_AUCTION = bool(int(os.environ['ACTIVATE_AUCTION']))
@@ -219,8 +220,7 @@ def finish_simulation(client: mqtt.Client):
     is_collecting_data = False
 
     generate_figures()
-
-    client.disconnect()
+    
     client.loop_stop()
     
     exit(0)
@@ -293,7 +293,8 @@ def generate_cpu_usage_figure(results_path):
     fig, ax = plt.subplots()
     for i in range(QUANTITY_FOGS):
         plt.plot(docker_time_reference[:min_list_length], cpu_usage_from_docker[i + 1][:min_list_length])
-
+    
+    ax.hlines(MESSAGE_PROCESSING_CPU_THRESHOLD, min(docker_time_reference), max(docker_time_reference[:min_list_length]), linestyles='dashed', colors='#000000')
     ax.legend([f'Fog {i + 1}' for i in range(QUANTITY_FOGS)])
     ax.set_ylim([0, 100])
     ax.set_xlabel('Seconds')

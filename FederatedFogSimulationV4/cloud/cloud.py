@@ -1,6 +1,11 @@
+import os
+from threading import Thread
+from time import sleep
 import paho.mqtt.client as mqtt
 from json import loads, dumps
 from socket import gethostbyname
+
+CLOUD_LATENCY = int(os.environ['CLOUD_LATENCY'])
 
 def main():
     client = mqtt.Client(clean_session=True)
@@ -19,8 +24,7 @@ def on_connect(client, userdata, flags, rc):
             print("Failed to connect, return code %d\n", rc)
 
 def on_message(client, userdata, message):
-    print(f'Mensagem recebida: {loads(message.payload)}')
-    client.publish('client', message.payload)
+    Thread(target=response_with_delay, args=(client, message.payload)).start()
 
     data_report_message = {
         'id': 0,
@@ -29,6 +33,10 @@ def on_message(client, userdata, message):
     }
 
     client.publish('data', dumps(data_report_message))
+
+def response_with_delay(client: mqtt.Client, message:str):
+    sleep(CLOUD_LATENCY/1000)
+    client.publish('client', message)
 
 if __name__ == '__main__':
     main()
