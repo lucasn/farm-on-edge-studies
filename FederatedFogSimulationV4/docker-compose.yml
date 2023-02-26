@@ -17,9 +17,6 @@ services:
     deploy:
       mode: replicated
       replicas: ${QUANTITY_FOGS}
-      # resources:
-      #   limits:
-      #     cpus: "1"
     depends_on:
       - "mosquitto"
 
@@ -29,6 +26,8 @@ services:
       - fog-network
     environment:
       - CLOUD_LATENCY=${CLOUD_LATENCY}
+      - PROCESS_MESSAGE_FUNCTION_REPEAT=${PROCESS_MESSAGE_FUNCTION_REPEAT}
+      - PROCESS_MESSAGE_LEADING_ZEROS=${PROCESS_MESSAGE_LEADING_ZEROS}
     depends_on:
       - "mosquitto"
 

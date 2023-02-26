@@ -32,6 +32,9 @@ def main():
         print("[*] Simulação com leilão")
     else:
         print("[*] Simulação sem leilão")
+
+    sleep(10)
+    
     container = retrieve_this_container()
 
     retrieve_fog_id(container)
@@ -133,6 +136,12 @@ def run_auction(client: mqtt.Client, auction_messages: list):
         client.publish(f'fog_{destination_fog + 1}', dumps(message))
 
 
+def send_to_cloud(client: mqtt.Client, cloud_messages: list):
+    for message in cloud_messages:
+        message['route'].append(FOG_ID)
+        client.publish('cloud', dumps(message))
+
+
 def on_message(client: mqtt.Client, userdata, message):
     global message_queue, latency_table, message_queue_mutex
 
@@ -151,7 +160,6 @@ def on_message(client: mqtt.Client, userdata, message):
             message_queue_mutex.notify_all()
             
 
-
 def handle_messages(client: mqtt.Client):
     global cpu_usage, cpu_usage_mutex, message_queue_mutex, message_queue
 
@@ -162,19 +170,32 @@ def handle_messages(client: mqtt.Client):
                 if qnt_messages == 0:
                     message_queue_mutex.wait()
 
-                elif ACTIVATE_AUCTION and qnt_messages >= QUANTITY_FOGS - 1:
-                    auction_messages = []
+                elif qnt_messages >= QUANTITY_FOGS - 1:
+                    if ACTIVATE_AUCTION:
+                        auction_messages = []
+                        
+                        for i in range(QUANTITY_FOGS-1):
+                            message = message_queue.get()
+                            if message['type'] == 'DIRECT':
+                                auction_messages.append(message)
+                            else:
+                                client.publish('cloud', dumps(message))
+                        
+                        if len(auction_messages) > 0:
+                            auction_thread = Thread(target=run_auction, args=(client, auction_messages))
+                            auction_thread.start()
                     
-                    for i in range(QUANTITY_FOGS-1):
-                        message = message_queue.get()
-                        if message['type'] == 'DIRECT':
-                            auction_messages.append(message)
-                        else:
-                            client.publish('cloud', dumps(message))
-                    
-                    if len(auction_messages) > 0:
-                        auction_thread = Thread(target= run_auction, args= (client, auction_messages))
-                        auction_thread.start()
+                    else:
+                        cloud_messages = []
+
+                        for i in range(QUANTITY_FOGS-1):
+                            message = message_queue.get()
+                            cloud_messages.append(message)
+                        
+                        send_to_cloud_thread = Thread(target=send_to_cloud, args=(client, cloud_messages))
+                        send_to_cloud_thread.start()
+
+                        
 
                 else:
                     message = message_queue.get()
@@ -189,6 +210,7 @@ def handle_messages(client: mqtt.Client):
 def cpu_usage_condition():
     global cpu_usage
     return cpu_usage < MESSAGE_PROCESSING_CPU_THRESHOLD
+
 
 def process_message(client: mqtt.Client, message:dict):
     process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=PROCESS_MESSAGE_FUNCTION_REPEAT)

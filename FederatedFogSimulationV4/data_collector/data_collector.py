@@ -41,6 +41,8 @@ def main():
     else:
         print("[*] Simulação sem leilão")
 
+    sleep(10)
+    
     check_docker_group_version()
 
     client = connect_to_broker(gethostbyname('mosquitto'), 1883)
@@ -220,8 +222,6 @@ def finish_simulation(client: mqtt.Client):
     is_collecting_data = False
 
     generate_figures()
-    
-    client.loop_stop()
     
     exit(0)
 
