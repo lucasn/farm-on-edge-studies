@@ -39,6 +39,10 @@ def on_message(client, userdata, message):
 
     
 def response_with_delay(client: mqtt.Client, message:str):
+    message = loads(message)
+    message['route'].append('cloud')
+    message = dumps(message)
+    
     sleep(2*CLOUD_LATENCY/1000) # Simulating incoming and outcoming latency
     process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=PROCESS_MESSAGE_FUNCTION_REPEAT)
     client.publish('client', message)

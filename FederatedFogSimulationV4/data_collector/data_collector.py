@@ -334,6 +334,11 @@ def generate_response_time_figure(results_path):
         delta_timestamp =  datetime_to_timedelta(object_timestamp)
         converted_time.append((delta_timestamp - reference_time) / timedelta(seconds=1))    
 
+    print('----------- Converted Time --------------')
+    print(converted_time)
+    print('----------- Response Time Value --------------')
+    print(response_time_value)  
+
     fig, ax = plt.subplots()
     ax.bar(converted_time, response_time_value)
     ax.set_title('Response Time')
@@ -341,10 +346,10 @@ def generate_response_time_figure(results_path):
     fig.savefig(f'{results_path}/response_time_bar.png')
 
     fig, ax = plt.subplots()
-    ax.scatter(converted_time, response_time_value)
+    ax.plot(converted_time, response_time_value)
     ax.set_title('Response Time')
     ax.set_ylabel('Seconds')
-    fig.savefig(f'{results_path}/response_time_scatter.png')
+    fig.savefig(f'{results_path}/response_time_line.png')
 
 
 if __name__ == '__main__':

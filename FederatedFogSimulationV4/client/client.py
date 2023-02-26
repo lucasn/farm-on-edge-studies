@@ -65,6 +65,7 @@ def on_message(client, userdata, message):
     if start_time is not None:
         response_time = time() - start_time
         print(f'Mensagem {parsed_message["id"]} recebida | Tempo de resposta: {response_time} s')
+        print(f'Rota da mensagem: {parsed_message["route"]}')
         data_report_message = {
             'data': 'RESPONSE_TIME',
             'response_time': response_time,

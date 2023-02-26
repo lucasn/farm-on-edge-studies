@@ -214,6 +214,7 @@ def cpu_usage_condition():
 
 def process_message(client: mqtt.Client, message:dict):
     process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=PROCESS_MESSAGE_FUNCTION_REPEAT)
+    message['route'].append(FOG_ID)
     client.publish('client', dumps(message))
     print('[x] Mensagem processada')
 
