@@ -1,3 +1,5 @@
 env
 *.png
+*.csv
+*.json
 data_collector/__pycache__

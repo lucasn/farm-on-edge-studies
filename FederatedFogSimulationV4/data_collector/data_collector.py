@@ -1,11 +1,11 @@
 from socket import gethostbyname
 from datetime import datetime, timedelta
 from threading import Timer, Thread
-from json import loads
+from json import loads, dump
 import os
 from time import sleep
-from pprint import PrettyPrinter
 
+import pandas as pd
 import paho.mqtt.client as mqtt
 import matplotlib.pyplot as plt
 import docker
@@ -17,6 +17,10 @@ MESSAGE_PROCESSING_CPU_THRESHOLD = int(os.environ['MESSAGE_PROCESSING_CPU_THRESH
 SIMULATION_TIME = int(os.environ['SIMULATION_TIME'])
 WARMUP_TIME = float(os.environ['WARMUP_TIME'])
 ACTIVATE_AUCTION = bool(int(os.environ['ACTIVATE_AUCTION']))
+CLOUD_LATENCY = int(os.environ['CLOUD_LATENCY'])
+PROCESS_MESSAGE_LEADING_ZEROS = int(os.environ['PROCESS_MESSAGE_LEADING_ZEROS'])
+PROCESS_MESSAGE_FUNCTION_REPEAT = int(os.environ['PROCESS_MESSAGE_FUNCTION_REPEAT'])
+WARMUP_TIME = int(os.environ['WARMUP_TIME'])
 
 received_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
 direct_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
@@ -92,18 +96,20 @@ def collect_container_time_and_cpu_usage(fog_id, stats_stream):
     time_reference = retrieve_cpu_usage_timestamp_from_docker_stats(stats)
     while True:
         if is_collecting_data:
-            stats = next(stats_stream)
+            try:
+                stats = next(stats_stream)
 
-            cpu_percent = retrieve_cpu_usage_from_docker_stats(stats)
-            cpu_usage_from_docker[fog_id + 1].append(cpu_percent)
-
-            mem_percent = retrieve_memory_usage_from_docker_stats(stats)
-            mem_usage_from_docker[fog_id + 1].append(mem_percent)
-
-            actual_time = retrieve_cpu_usage_timestamp_from_docker_stats(stats)
-            docker_time_reference.append(
-                (actual_time - time_reference) / timedelta(seconds=1)
-            ) 
+                cpu_percent = retrieve_cpu_usage_from_docker_stats(stats)
+                mem_percent = retrieve_memory_usage_from_docker_stats(stats)
+                actual_time = retrieve_cpu_usage_timestamp_from_docker_stats(stats)
+                
+                cpu_usage_from_docker[fog_id + 1].append(cpu_percent)
+                mem_usage_from_docker[fog_id + 1].append(mem_percent)
+                docker_time_reference.append(
+                    (actual_time - time_reference) / timedelta(seconds=1)
+                )
+            except:
+                pass
 
             
 def collect_container_cpu_usage(fog_id, stats_stream):
@@ -157,6 +163,7 @@ def retrieve_cpu_usage_timestamp_from_docker_stats(stats):
 
     return actual_time_delta
 
+
 def datetime_to_timedelta(timestamp: datetime):
     return timedelta(
         hours=timestamp.hour,
@@ -164,6 +171,7 @@ def datetime_to_timedelta(timestamp: datetime):
         seconds=timestamp.second,
         microseconds=timestamp.microsecond
     )
+
 
 def sanitize_docker_stats_timestamp(timestamp: str):
     milliseconds_index = timestamp.find('.')
@@ -221,9 +229,88 @@ def finish_simulation(client: mqtt.Client):
 
     is_collecting_data = False
 
-    generate_figures()
-    
+    save_data()
+
     exit(0)
+
+def save_data():
+    timestamp = datetime.now()
+    with_or_without_auction = 'with auction' if ACTIVATE_AUCTION else 'without auction'
+    results_path = f"./results/{QUANTITY_FOGS} fogs and {QUANTITY_CLIENTS} clients {with_or_without_auction} ({SIMULATION_TIME}s)/{timestamp}"
+    
+    if not os.path.exists(results_path):
+        os.makedirs(results_path)
+
+    print("[DATA] Saving data")
+
+    save_messages_data(results_path)
+    save_cpu_usage_data(results_path)
+    save_mem_usage_data(results_path)
+    save_response_time_data(results_path)
+    save_enviromment(results_path)
+
+    print("[DATA] Data saved with sucess")
+
+
+def save_messages_data(results_path: str):
+    messages_df = pd.DataFrame()
+    messages_df['fog_label'] = [i for i in range(QUANTITY_FOGS+1)] # 0 is for the cloud
+    messages_df['received_messages_counter'] = received_messages_counter
+    messages_df['direct_messages_counter'] = direct_messages_counter
+    messages_df['redirect_messages_counter'] = redirect_messages_counter
+    messages_df.to_csv(f'{results_path}/messages.csv', index=False)
+
+
+def save_cpu_usage_data(results_path: str):
+    global cpu_usage_from_docker, docker_time_reference
+    cpu_df = pd.DataFrame()
+    cpu_df['time_reference'] = docker_time_reference
+    for i, cpu_usage in enumerate(cpu_usage_from_docker[1:]):
+        cpu_df[f'Fog {i+1}'] = cpu_usage
+    cpu_df.to_csv(f'{results_path}/cpu.csv', index=False)
+
+
+def save_mem_usage_data(results_path: str):
+    memory_df = pd.DataFrame()
+    memory_df['time_reference'] = docker_time_reference
+    for i, mem_usage in enumerate(mem_usage_from_docker[1:]):
+        memory_df[f'Fog {i+1}'] = mem_usage
+    memory_df.to_csv(f'{results_path}/memory.csv', index=False)
+
+
+def save_response_time_data(results_path: str):
+    global simulation_start_timestamp, response_time_value
+    reference_time =  datetime_to_timedelta(simulation_start_timestamp)
+    converted_time = []
+    for timestamp in response_time_instant:
+        object_timestamp = datetime.fromisoformat(timestamp)
+        delta_timestamp =  datetime_to_timedelta(object_timestamp)
+        converted_time.append((delta_timestamp - reference_time) / timedelta(seconds=1))
+
+    response_time_df = pd.DataFrame()
+    response_time_df['instant'] = converted_time
+    response_time_df['response_time'] = response_time_value
+    response_time_df.to_csv(f'{results_path}/response_time.csv', index=False)
+
+def save_enviromment(results_path: str):
+    env = {
+        'QUANTITY_FOGS': QUANTITY_FOGS,
+        'QUANTITY_CLIENTS': QUANTITY_CLIENTS,
+        'MESSAGE_PROCESSING_CPU_THRESHOLD': MESSAGE_PROCESSING_CPU_THRESHOLD, 
+        'SIMULATION_TIME': SIMULATION_TIME,
+        'ACTIVATE_AUCTION': int(ACTIVATE_AUCTION),
+        'CLOUD_LATENCY': CLOUD_LATENCY,
+        'PROCESS_MESSAGE_LEADING_ZEROS': PROCESS_MESSAGE_LEADING_ZEROS,
+        'PROCESS_MESSAGE_FUNCTION_REPEAT': PROCESS_MESSAGE_FUNCTION_REPEAT,
+        'WARMUP_TIME': WARMUP_TIME
+    }
+
+    with open(f'{results_path}/env.json', 'w') as env_file:
+        dump(env, env_file, indent=4)
+
+
+
+
 
 def generate_figures():
     print('[DATA] Generating figures...')
@@ -241,6 +328,14 @@ def generate_figures():
     
     figure_y_limit = max(received_messages_counter) + 10
 
+    for i in range(QUANTITY_FOGS):
+        print(f"len(cpu_usage_from_docker[{i+1}] = {len(cpu_usage_from_docker[i+1])}")
+
+    for i in range(QUANTITY_FOGS):
+        print(f"len(mem_usage_from_docker[{i+1}] = {len(mem_usage_from_docker[i+1])}")
+
+    print(f"len(docker_time_reference): {len(docker_time_reference)}")
+    
     generate_received_messages_figure(fogs_labels, results_path, figure_y_limit)
     
     generate_direct_messages_figure(fogs_labels, results_path, figure_y_limit)
