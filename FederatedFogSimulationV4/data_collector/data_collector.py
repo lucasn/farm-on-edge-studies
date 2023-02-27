@@ -37,9 +37,9 @@ docker_is_cgroupv1 = False
 
 def main():
     if ACTIVATE_AUCTION:
-        print("[*] Simulação com leilão")
+        print("[SIMULATION] Simulation with auction")
     else:
-        print("[*] Simulação sem leilão")
+        print("[SIMULATION] Simulation without auction")
 
     sleep(10)
     
@@ -190,7 +190,7 @@ def on_message(client, userdata, message):
 
 def on_connect(client, userdata, flags, rc):
         if rc == 0:
-            print(f'Data collector connected to MQTT broker')
+            print(f'[BROKER] Data collector connected to MQTT broker')
         else:
             print("Failed to connect, return code %d\n", rc)
 
@@ -206,7 +206,7 @@ def connect_to_broker(host, port):
 
 def start_simulation(client: mqtt.Client):
     global simulation_start_timestamp
-    print('Iniciando simulação...')
+    print('[SIMULATION] Starting simulation...')
     client.publish('start')
 
     simulation_start_timestamp = datetime.now()
@@ -226,7 +226,7 @@ def finish_simulation(client: mqtt.Client):
     exit(0)
 
 def generate_figures():
-    print('Generating figures...')
+    print('[DATA] Generating figures...')
 
     fogs_labels = ['Cloud']
     for i in range(QUANTITY_FOGS):
@@ -253,7 +253,7 @@ def generate_figures():
 
     generate_response_time_figure(results_path)
 
-    print("Figuras geradas com sucesso!")
+    print("[DATA] figures generated with success")
     
 
 def generate_received_messages_figure(fogs_labels, results_path, y_limit):
@@ -333,11 +333,6 @@ def generate_response_time_figure(results_path):
         object_timestamp = datetime.fromisoformat(timestamp)
         delta_timestamp =  datetime_to_timedelta(object_timestamp)
         converted_time.append((delta_timestamp - reference_time) / timedelta(seconds=1))    
-
-    print('----------- Converted Time --------------')
-    print(converted_time)
-    print('----------- Response Time Value --------------')
-    print(response_time_value)  
 
     fig, ax = plt.subplots()
     ax.bar(converted_time, response_time_value)

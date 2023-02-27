@@ -29,9 +29,9 @@ message_queue_mutex = Condition()
 
 def main():
     if ACTIVATE_AUCTION:
-        print("[*] Simulação com leilão")
+        print("[SIMULATION] Simulation with action")
     else:
-        print("[*] Simulação sem leilão")
+        print("[SIMULATION] Simulation without auction")
 
     sleep(10)
     
@@ -78,6 +78,7 @@ def update_cpu_usage(container):
         stats = next(stream)
         with cpu_usage_mutex:
             cpu_usage = retrieve_cpu_usage_from_docker_stats(stats)
+            print(f'[RESOURCES] CPU utilization: {cpu_usage}\n', end='')
             cpu_usage_mutex.notify_all()
         
 
@@ -110,11 +111,11 @@ def run_auction(client: mqtt.Client, auction_messages: list):
     
     latency_benefits = []
     messages_number = len(auction_messages)
-    print(f'Rodando leilão para {messages_number} mensagens')
+    print(f'[AUCTION] Running auction for {messages_number} messages')
 
-    print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
+    #print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
     actual_latency_table = transform_latency(actual_latency_table)
-    print(f'[x] Tabela transformada: {actual_latency_table}')
+    #print(f'[x] Tabela transformada: {actual_latency_table}')
 
     for i in range(messages_number):
         for j in range(QUANTITY_FOGS):
@@ -132,7 +133,7 @@ def run_auction(client: mqtt.Client, auction_messages: list):
         message['route'].append(FOG_ID)
         message['type'] = 'REDIRECT'
 
-        print(f'Enviando mensagem {message_index} para fog {destination_fog + 1}')
+        #(f'Enviando mensagem {message_index} para fog {destination_fog + 1}')
         client.publish(f'fog_{destination_fog + 1}', dumps(message))
 
 
@@ -155,8 +156,12 @@ def on_message(client: mqtt.Client, userdata, message):
     client.publish('data', dumps(data_report_message))
     
     if parsed_message['type'] in ['DIRECT', 'REDIRECT']:
+        #print('[MESSAGE] Mensagem Recebida')
         with message_queue_mutex:
             message_queue.put(parsed_message)
+            if message_queue.qsize() >= QUANTITY_FOGS - 1:
+                send_to_auction_or_to_cloud(client)
+            print(f'[MESSAGE] Number of messages in the queue: {message_queue.qsize()}')
             message_queue_mutex.notify_all()
             
 
@@ -170,33 +175,6 @@ def handle_messages(client: mqtt.Client):
                 if qnt_messages == 0:
                     message_queue_mutex.wait()
 
-                elif qnt_messages >= QUANTITY_FOGS - 1:
-                    if ACTIVATE_AUCTION:
-                        auction_messages = []
-                        
-                        for i in range(QUANTITY_FOGS-1):
-                            message = message_queue.get()
-                            if message['type'] == 'DIRECT':
-                                auction_messages.append(message)
-                            else:
-                                client.publish('cloud', dumps(message))
-                        
-                        if len(auction_messages) > 0:
-                            auction_thread = Thread(target=run_auction, args=(client, auction_messages))
-                            auction_thread.start()
-                    
-                    else:
-                        cloud_messages = []
-
-                        for i in range(QUANTITY_FOGS-1):
-                            message = message_queue.get()
-                            cloud_messages.append(message)
-                        
-                        send_to_cloud_thread = Thread(target=send_to_cloud, args=(client, cloud_messages))
-                        send_to_cloud_thread.start()
-
-                        
-
                 else:
                     message = message_queue.get()
                     process_thread = Thread(target=process_message, args=(client, message))
@@ -205,6 +183,33 @@ def handle_messages(client: mqtt.Client):
         else:
             with cpu_usage_mutex:
                 cpu_usage_mutex.wait_for(cpu_usage_condition)
+
+
+def send_to_auction_or_to_cloud(client):
+    if ACTIVATE_AUCTION:
+        auction_messages = []
+        
+        for i in range(QUANTITY_FOGS-1):
+            message = message_queue.get()
+            if message['type'] == 'DIRECT':
+                auction_messages.append(message)
+            else:
+                message['route'].append(FOG_ID)
+                client.publish('cloud', dumps(message))
+        
+        if len(auction_messages) > 0:
+            auction_thread = Thread(target=run_auction, args=(client, auction_messages))
+            auction_thread.start()
+    
+    else:
+        cloud_messages = []
+
+        for i in range(QUANTITY_FOGS-1):
+            message = message_queue.get()
+            cloud_messages.append(message)
+        
+        send_to_cloud_thread = Thread(target=send_to_cloud, args=(client, cloud_messages))
+        send_to_cloud_thread.start()
 
 
 def cpu_usage_condition():
@@ -216,7 +221,7 @@ def process_message(client: mqtt.Client, message:dict):
     process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=PROCESS_MESSAGE_FUNCTION_REPEAT)
     message['route'].append(FOG_ID)
     client.publish('client', dumps(message))
-    print('[x] Mensagem processada')
+    #print('[x] Mensagem processada')
 
 
 def on_connect(client, userdata, flags, rc):
@@ -245,7 +250,7 @@ def transform_latency(latency_table):
 
 
 def execute_ping():
-    print('[-] Executando ping')
+    #print('[-] Executando ping')
     while True:
         sleep(10)
         ping_all_fogs()
@@ -257,9 +262,9 @@ def ping_all_fogs():
             if i != FOG_ID:
                 latency = ping(f'simulation-fog-{i}')
                 latency_table[i] = float(latency)
-                print(f'[*] Latência para {i}: {latency_table[i]} ms')
+                #print(f'[*] Latência para {i}: {latency_table[i]} ms')
 
-    print(latency_table)
+    #print(latency_table)
 
 class RepeatTimer(Timer):  
     def run(self):  
