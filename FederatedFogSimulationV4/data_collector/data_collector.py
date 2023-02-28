@@ -94,6 +94,7 @@ def collect_container_time_and_cpu_usage(fog_id, stats_stream):
 
     stats = next(stats_stream)
     time_reference = retrieve_cpu_usage_timestamp_from_docker_stats(stats)
+
     while True:
         if is_collecting_data:
             try:
@@ -109,7 +110,7 @@ def collect_container_time_and_cpu_usage(fog_id, stats_stream):
                     (actual_time - time_reference) / timedelta(seconds=1)
                 )
             except:
-                pass
+                print('[EXCEPTION] Exception in retrieve_cpu_usage_timestamp_from_docker_stats')
 
             
 def collect_container_cpu_usage(fog_id, stats_stream):
@@ -263,18 +264,31 @@ def save_messages_data(results_path: str):
 
 def save_cpu_usage_data(results_path: str):
     global cpu_usage_from_docker, docker_time_reference
+    
+    min_list_length = len(docker_time_reference)
+    for l in cpu_usage_from_docker[1:]:
+        if len(l) < min_list_length:
+            min_list_length = len(l)
+
     cpu_df = pd.DataFrame()
-    cpu_df['time_reference'] = docker_time_reference
+    cpu_df['time_reference'] = docker_time_reference[:min_list_length]
     for i, cpu_usage in enumerate(cpu_usage_from_docker[1:]):
-        cpu_df[f'Fog {i+1}'] = cpu_usage
+        cpu_df[f'Fog {i+1}'] = cpu_usage[:min_list_length]
     cpu_df.to_csv(f'{results_path}/cpu.csv', index=False)
 
 
 def save_mem_usage_data(results_path: str):
+    global mem_usage_from_docker, docker_time_reference
+
+    min_list_length = len(docker_time_reference)
+    for l in cpu_usage_from_docker[1:]:
+        if len(l) < min_list_length:
+            min_list_length = len(l)
+
     memory_df = pd.DataFrame()
-    memory_df['time_reference'] = docker_time_reference
+    memory_df['time_reference'] = docker_time_reference[:min_list_length]
     for i, mem_usage in enumerate(mem_usage_from_docker[1:]):
-        memory_df[f'Fog {i+1}'] = mem_usage
+        memory_df[f'Fog {i+1}'] = mem_usage[:min_list_length]
     memory_df.to_csv(f'{results_path}/memory.csv', index=False)
 
 
@@ -307,9 +321,6 @@ def save_enviromment(results_path: str):
 
     with open(f'{results_path}/env.json', 'w') as env_file:
         dump(env, env_file, indent=4)
-
-
-
 
 
 def generate_figures():
