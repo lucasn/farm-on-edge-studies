@@ -5,6 +5,7 @@ import paho.mqtt.client as mqtt
 from json import loads, dumps
 from socket import gethostbyname
 from processing import process
+from random import random
 
 CLOUD_LATENCY = int(os.environ['CLOUD_LATENCY'])
 PROCESS_MESSAGE_FUNCTION_REPEAT = int(os.environ['PROCESS_MESSAGE_FUNCTION_REPEAT'])
@@ -44,7 +45,8 @@ def response_with_delay(client: mqtt.Client, message:str):
     message = dumps(message)
     
     sleep(2*CLOUD_LATENCY/1000) # Simulating incoming and outcoming latency
-    process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=PROCESS_MESSAGE_FUNCTION_REPEAT)
+    sleep(0.1 + (random() % 0.02 - 0.01))
+    #process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=PROCESS_MESSAGE_FUNCTION_REPEAT)
     client.publish('client', message)
 
 if __name__ == '__main__':
