@@ -9,6 +9,7 @@ from socket import gethostbyname
 from processing import process
 from ping import ping
 from time import sleep
+import random
 
 from asymmetric_auction import hold_auction
 
@@ -137,12 +138,6 @@ def run_auction(client: mqtt.Client, auction_messages: list):
         client.publish(f'fog_{destination_fog + 1}', dumps(message))
 
 
-def send_to_cloud(client: mqtt.Client, cloud_messages: list):
-    for message in cloud_messages:
-        message['route'].append(FOG_ID)
-        client.publish('cloud', dumps(message))
-
-
 def on_message(client: mqtt.Client, userdata, message):
     global message_queue, latency_table, message_queue_mutex
 
@@ -186,30 +181,29 @@ def handle_messages(client: mqtt.Client):
 
 
 def send_to_auction_or_to_cloud(client):
-    if ACTIVATE_AUCTION:
-        auction_messages = []
+    redirect_messages = []
         
-        for i in range(QUANTITY_FOGS-1):
-            message = message_queue.get()
-            if message['type'] == 'DIRECT':
-                auction_messages.append(message)
-            else:
-                message['route'].append(FOG_ID)
-                client.publish('cloud', dumps(message))
-        
-        if len(auction_messages) > 0:
-            auction_thread = Thread(target=run_auction, args=(client, auction_messages))
-            auction_thread.start()
+    for _ in range(QUANTITY_FOGS-1):
+        message = message_queue.get()
+        if message['type'] == 'DIRECT':
+            redirect_messages.append(message)
+        else:
+            message['route'].append(FOG_ID)
+            client.publish('cloud', dumps(message))
     
-    else:
-        cloud_messages = []
+    if len(redirect_messages) > 0:
+        if ACTIVATE_AUCTION:
+            Thread(target=run_auction, args=(client, redirect_messages)).start()
+        else:
+            Thread(target=map_requests_to_fogs, args=(client, redirect_messages)).start()
 
-        for i in range(QUANTITY_FOGS-1):
-            message = message_queue.get()
-            cloud_messages.append(message)
-        
-        send_to_cloud_thread = Thread(target=send_to_cloud, args=(client, cloud_messages))
-        send_to_cloud_thread.start()
+
+def map_requests_to_fogs(client, messages):
+    fogs_mapped = random.sample(range(1, QUANTITY_FOGS + 1), len(messages))
+    for fog, message in zip(fogs_mapped, messages):
+        message['type'] = 'REDIRECT'
+        message['route'].append(FOG_ID)
+        client.publish(f'fog_{fog}', dumps(message))
 
 
 def cpu_usage_condition():

@@ -3,3 +3,4 @@ env
 *.csv
 *.json
 data_collector/__pycache__
+*/__pycache__
