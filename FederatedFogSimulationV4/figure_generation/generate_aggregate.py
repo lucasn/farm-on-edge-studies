@@ -1,4 +1,6 @@
 from utils import open_results, calculate_confidence_interval
+import numpy as np
+import matplotlib.pyplot as plt
 
 def main():
     number_of_reps = int(input('Quantidade de repetições: '))
@@ -32,7 +34,53 @@ def main():
             confidence_level=0.95
         )
     
-    
+    y_with_auction = []
+    y_without_auction = []
+    for config in configs:
+        y_with_auction.append((config['with_auction_response_time_confidence_interval'][0] + config['with_auction_response_time_confidence_interval'][1])/2)
+        y_without_auction.append((config['without_auction_response_time_confidence_interval'][0] + config['without_auction_response_time_confidence_interval'][1])/2)
+
+    barwidth = 0.2
+    fig = plt.subplots(figsize =(12, 8))
+
+    confidence_interval_with_auction = [config['with_auction_response_time_confidence_interval'][1] - y for config, y in zip(configs, y_with_auction)]
+    confidence_interval_without_auction = [config['without_auction_response_time_confidence_interval'][1] - y for config, y in zip(configs, y_without_auction)]
+
+    indice = np.arange(len(y_with_auction))
+    x1 = [x - barwidth for x in indice]
+    x2 = [x + barwidth for x in indice]
+
+    plt.bar(
+        x1, 
+        y_with_auction, 
+        color='r', 
+        width=1.5*barwidth, 
+        label='Com leilão',
+        edgecolor='black',
+        capsize=10,
+        yerr=confidence_interval_with_auction
+    )
+    plt.bar(
+        x2, 
+        y_without_auction, 
+        color='b', 
+        width=1.5*barwidth, 
+        label='Sem leilão',
+        edgecolor='black',
+        capsize=10,
+        yerr=confidence_interval_without_auction
+    )
+
+    plt.xlabel('Configuração do experimento')
+    plt.ylabel('Tempo de Resposta Médio (s)')
+    plt.xticks(
+        [r for r in range(len(y_with_auction))],
+        [f'{config["QUANTITY_FOGS"]} fogs / {config["QUANTITY_CLIENTS"]} clients' for config in configs]
+    )
+
+    plt.legend()
+    plt.savefig('aggregate.png')
+
 
 
 def read_repetitions(file, number_of_reps):
