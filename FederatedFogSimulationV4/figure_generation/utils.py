@@ -1,6 +1,7 @@
 import pandas as pd
 from json import load
-from scipy.stat as st
+import scipy.stats as st
+import numpy as np
 
 def open_results(results_path):
     with open(f'{results_path}/env.json', 'r') as f:

@@ -1,3 +1,8 @@
-teste
-teste
-teste
+../data_collector/results/4 fogs and 50 clients with auction (20s)/2023-03-02 11:27:40.782072
+../data_collector/results/4 fogs and 50 clients with auction (20s)/2023-03-02 11:28:53.571904
+../data_collector/results/4 fogs and 50 clients without auction (20s)/2023-03-02 11:30:08.440230
+../data_collector/results/4 fogs and 50 clients without auction (20s)/2023-03-02 11:31:16.511643
+../data_collector/results/5 fogs and 50 clients with auction (20s)/2023-03-02 11:33:01.331931
+../data_collector/results/5 fogs and 50 clients with auction (20s)/2023-03-02 11:34:07.784087
+../data_collector/results/5 fogs and 50 clients without auction (20s)/2023-03-02 11:35:14.124537
+../data_collector/results/5 fogs and 50 clients without auction (20s)/2023-03-02 11:36:28.593608
