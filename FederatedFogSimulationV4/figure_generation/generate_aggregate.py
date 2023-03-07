@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 def main():
     number_of_reps = int(input('Quantidade de repetições: '))
     number_of_configs = int(input('Quantidade de configurações: '))
+    filename = input('Nome da figura: ')
 
     f = open('aggregate_input.txt', 'r')
     
@@ -75,11 +76,11 @@ def main():
     plt.ylabel('Tempo de Resposta Médio (s)')
     plt.xticks(
         [r for r in range(len(y_with_auction))],
-        [f'{config["QUANTITY_FOGS"]} fogs / {config["QUANTITY_CLIENTS"]} clients' for config in configs]
+        [f'{config["QUANTITY_FOGS"]} fogs / {config["QUANTITY_CLIENTS"]} clientes' for config in configs]
     )
 
     plt.legend()
-    plt.savefig('aggregate.png')
+    plt.savefig(f'aggregate/{filename}.png')
 
 
 
