@@ -34,7 +34,7 @@ def main():
     else:
         print("[SIMULATION] Simulation without auction")
 
-    sleep(10)
+    sleep(15)
     
     container = retrieve_this_container()
 
@@ -244,7 +244,6 @@ def transform_latency(latency_table):
 
 
 def execute_ping():
-    #print('[-] Executando ping')
     while True:
         sleep(10)
         ping_all_fogs()
@@ -254,11 +253,11 @@ def ping_all_fogs():
     global latency_table
     for i in range(1, QUANTITY_FOGS + 1):
             if i != FOG_ID:
-                latency = ping(f'simulation-fog-{i}')
-                latency_table[i] = float(latency)
-                #print(f'[*] Latência para {i}: {latency_table[i]} ms')
+                latency = float(ping(f'simulation-fog-{i}'))
+                latency_noise = abs(random.gauss(mu=5, sigma=2))
+                latency_table[i] = latency + latency_noise
 
-    #print(latency_table)
+    print(f'[PING] Latency table: {latency_table}')
 
 class RepeatTimer(Timer):  
     def run(self):  

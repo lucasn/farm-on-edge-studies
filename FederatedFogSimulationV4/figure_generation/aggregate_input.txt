@@ -1,43 +1,4 @@
-<<<<<<< Updated upstream
-../data_collector/results/20 fogs and 200 clients with auction (20s)/2023-03-04 20:34:53.363556
-../data_collector/results/20 fogs and 200 clients with auction (20s)/2023-03-04 20:36:14.119180
-../data_collector/results/20 fogs and 200 clients with auction (20s)/2023-03-04 20:38:02.330711
-../data_collector/results/20 fogs and 200 clients with auction (20s)/2023-03-04 20:39:11.050502
-../data_collector/results/20 fogs and 200 clients with auction (20s)/2023-03-04 20:40:38.921952
-../data_collector/results/20 fogs and 200 clients without auction (20s)/2023-03-04 20:41:46.059183
-../data_collector/results/20 fogs and 200 clients without auction (20s)/2023-03-04 20:42:59.896018
-../data_collector/results/20 fogs and 200 clients without auction (20s)/2023-03-04 20:44:19.169982
-../data_collector/results/20 fogs and 200 clients without auction (20s)/2023-03-04 20:46:04.036454
-../data_collector/results/20 fogs and 200 clients without auction (20s)/2023-03-04 20:47:29.527993
-=======
-../data_collector/results/12 fogs and 50 clients with auction (20s)/2023-03-02 22:27:25.744515
-../data_collector/results/12 fogs and 50 clients with auction (20s)/2023-03-02 22:32:23.907801
-../data_collector/results/12 fogs and 50 clients with auction (20s)/2023-03-02 22:35:00.511024
-../data_collector/results/12 fogs and 50 clients with auction (20s)/2023-03-02 22:37:14.842023
-../data_collector/results/12 fogs and 50 clients with auction (20s)/2023-03-02 22:38:47.483348
-../data_collector/results/12 fogs and 50 clients without auction (20s)/2023-03-02 22:12:06.946721
-../data_collector/results/12 fogs and 50 clients without auction (20s)/2023-03-02 22:18:22.284691
-../data_collector/results/12 fogs and 50 clients without auction (20s)/2023-03-02 22:22:06.052744
-../data_collector/results/12 fogs and 50 clients without auction (20s)/2023-03-02 22:23:40.314201
-../data_collector/results/12 fogs and 50 clients without auction (20s)/2023-03-02 22:25:50.931712
-../data_collector/results/12 fogs and 100 clients with auction (20s)/2023-03-02 23:33:08.341219
-../data_collector/results/12 fogs and 100 clients with auction (20s)/2023-03-02 23:34:55.710564
-../data_collector/results/12 fogs and 100 clients with auction (20s)/2023-03-02 23:36:33.290816
-../data_collector/results/12 fogs and 100 clients with auction (20s)/2023-03-02 23:37:55.637354
-../data_collector/results/12 fogs and 100 clients with auction (20s)/2023-03-02 23:41:27.417679
-../data_collector/results/12 fogs and 100 clients without auction (20s)/2023-03-02 23:42:52.270909
-../data_collector/results/12 fogs and 100 clients without auction (20s)/2023-03-02 23:45:11.715676
-../data_collector/results/12 fogs and 100 clients without auction (20s)/2023-03-02 23:46:44.667056
-../data_collector/results/12 fogs and 100 clients without auction (20s)/2023-03-02 23:49:43.882178
-../data_collector/results/12 fogs and 100 clients without auction (20s)/2023-03-02 23:52:41.727936
-../data_collector/results/12 fogs and 200 clients with auction (20s)/2023-03-03 00:04:29.697567
-../data_collector/results/12 fogs and 200 clients with auction (20s)/2023-03-03 00:06:14.835025
-../data_collector/results/12 fogs and 200 clients with auction (20s)/2023-03-03 00:09:08.226285
-../data_collector/results/12 fogs and 200 clients with auction (20s)/2023-03-03 00:10:39.569861
-../data_collector/results/12 fogs and 200 clients with auction (20s)/2023-03-03 00:12:04.905885
-../data_collector/results/12 fogs and 200 clients without auction (20s)/2023-03-02 23:54:33.007149
-../data_collector/results/12 fogs and 200 clients without auction (20s)/2023-03-02 23:56:10.589260
-../data_collector/results/12 fogs and 200 clients without auction (20s)/2023-03-02 23:57:37.685598
-../data_collector/results/12 fogs and 200 clients without auction (20s)/2023-03-02 23:59:26.209648
-../data_collector/results/12 fogs and 200 clients without auction (20s)/2023-03-03 00:02:29.654337
->>>>>>> Stashed changes
+../data_collector/results/10 fogs and 400 clients with auction (20s)/2023-03-09 12:28:32.119996
+../data_collector/results/10 fogs and 400 clients with auction (20s)/2023-03-09 12:29:35.304801
+../data_collector/results/10 fogs and 400 clients without auction (20s)/2023-03-09 12:30:37.996648
+../data_collector/results/10 fogs and 400 clients without auction (20s)/2023-03-09 12:31:45.677584

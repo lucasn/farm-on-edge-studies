@@ -1,4 +1,5 @@
 from utils import open_results, calculate_confidence_interval
+from json import dumps
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -34,6 +35,18 @@ def main():
             sample=config['without_auction_response_time_mean'],
             confidence_level=0.95
         )
+
+    debug_conf_interval = {
+        'auction_mean': config['with_auction_response_time_mean'],
+        'no_auction_mean': config['without_auction_response_time_mean'],
+        'auction_conf_interval': config['with_auction_response_time_confidence_interval'],
+        'no_auction_conf_interval': config['without_auction_response_time_confidence_interval']
+    }
+
+    debug_conf_interval = dumps(debug_conf_interval)
+    with open('debug_conf_interval.json', 'w') as f:
+        f.write(debug_conf_interval)
+    
     
     y_with_auction = []
     y_without_auction = []
