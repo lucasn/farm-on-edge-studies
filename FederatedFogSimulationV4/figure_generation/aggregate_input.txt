@@ -1,4 +1,10 @@
-../data_collector/results/10 fogs and 400 clients with auction (20s)/2023-03-09 12:28:32.119996
-../data_collector/results/10 fogs and 400 clients with auction (20s)/2023-03-09 12:29:35.304801
-../data_collector/results/10 fogs and 400 clients without auction (20s)/2023-03-09 12:30:37.996648
-../data_collector/results/10 fogs and 400 clients without auction (20s)/2023-03-09 12:31:45.677584
+../data_collector/results/9 fogs and 400 clients with auction (20s)/2023-03-14 13:18:02.280966
+../data_collector/results/9 fogs and 400 clients with auction (20s)/2023-03-14 13:19:06.121849
+../data_collector/results/9 fogs and 400 clients with auction (20s)/2023-03-14 13:20:10.118923
+../data_collector/results/9 fogs and 400 clients with auction (20s)/2023-03-14 13:21:14.580253
+../data_collector/results/9 fogs and 400 clients with auction (20s)/2023-03-14 13:22:17.697374
+../data_collector/results/9 fogs and 400 clients without auction (20s)/2023-03-14 13:23:21.365894
+../data_collector/results/9 fogs and 400 clients without auction (20s)/2023-03-14 13:24:24.667660
+../data_collector/results/9 fogs and 400 clients without auction (20s)/2023-03-14 13:25:29.453666
+../data_collector/results/9 fogs and 400 clients without auction (20s)/2023-03-14 13:26:33.014144
+../data_collector/results/9 fogs and 400 clients without auction (20s)/2023-03-14 13:27:38.958318

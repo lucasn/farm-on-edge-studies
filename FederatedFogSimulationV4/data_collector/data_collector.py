@@ -215,7 +215,10 @@ def connect_to_broker(host, port):
 
 def start_simulation(client: mqtt.Client):
     global simulation_start_timestamp
-    print('[SIMULATION] Starting simulation...')
+    print('[SIMULATION] Starting fogs...')
+    client.publish('start_fogs')
+    sleep(1)
+    print('[SIMULATION] Starting clients...')
     client.publish('start')
 
     simulation_start_timestamp = datetime.now()

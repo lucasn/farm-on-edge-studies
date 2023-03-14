@@ -30,22 +30,26 @@ message_queue_mutex = Condition()
 
 def main():
     if ACTIVATE_AUCTION:
-        print("[SIMULATION] Simulation with action")
+        print("[SIMULATION] Simulation with auction")
     else:
         print("[SIMULATION] Simulation without auction")
 
-    sleep(15)
-    
+    client = connect_to_broker(gethostbyname('mosquitto'), 1883)
+    client.subscribe('start_fogs')
+
+    client.loop_forever()
+
+
+def start_simulation(client):
     container = retrieve_this_container()
 
     retrieve_fog_id(container)
 
     ping_all_fogs()
 
-    client = connect_to_broker(gethostbyname('mosquitto'), 1883)
     client.subscribe(f'fog_{FOG_ID}')
 
-    ping_thread = Thread(target=execute_ping, daemon=True)
+    ping_thread = Thread(target=execute_ping)
     ping_thread.start()
 
     update_cpu_thread = Thread(target=update_cpu_usage, args=(container,))
@@ -53,8 +57,6 @@ def main():
 
     handle_messages_thread = Thread(target=handle_messages, args=(client,))
     handle_messages_thread.start()
-
-    client.loop_forever()
 
 
 def retrieve_this_container():
@@ -79,7 +81,7 @@ def update_cpu_usage(container):
         stats = next(stream)
         with cpu_usage_mutex:
             cpu_usage = retrieve_cpu_usage_from_docker_stats(stats)
-            print(f'[RESOURCES] CPU utilization: {cpu_usage}\n', end='')
+            #print(f'[RESOURCES] CPU utilization: {cpu_usage}\n', end='')
             cpu_usage_mutex.notify_all()
         
 
@@ -103,6 +105,13 @@ def connect_to_broker(host, port):
     return client
 
 
+def send_to_fog(client, fog, message):
+    global latency_table
+    print(f'[DEBUG] Latency to send message to fog {fog}: {latency_table[fog]}')
+    sleep(latency_table[fog] / 1000)
+    client.publish(f'fog_{fog}', dumps(message))
+
+
 def run_auction(client: mqtt.Client, auction_messages: list):
     global latency_table
 
@@ -112,7 +121,7 @@ def run_auction(client: mqtt.Client, auction_messages: list):
     
     latency_benefits = []
     messages_number = len(auction_messages)
-    print(f'[AUCTION] Running auction for {messages_number} messages')
+    #print(f'[AUCTION] Running auction for {messages_number} messages')
 
     #print(f'[x] Tabela de latências para o leilão: {actual_latency_table}')
     actual_latency_table = transform_latency(actual_latency_table)
@@ -135,11 +144,16 @@ def run_auction(client: mqtt.Client, auction_messages: list):
         message['type'] = 'REDIRECT'
 
         #(f'Enviando mensagem {message_index} para fog {destination_fog + 1}')
-        client.publish(f'fog_{destination_fog + 1}', dumps(message))
+        Thread(target=send_to_fog, args=(client, destination_fog + 1, message)).start()
 
 
 def on_message(client: mqtt.Client, userdata, message):
     global message_queue, latency_table, message_queue_mutex
+
+    if message.topic == 'start_fogs':
+        print('[SIMULATION] Starting simulation...')
+        Thread(target=start_simulation, args=(client,)).start()
+        return
 
     parsed_message = loads(message.payload)
     data_report_message = {
@@ -156,7 +170,7 @@ def on_message(client: mqtt.Client, userdata, message):
             message_queue.put(parsed_message)
             if message_queue.qsize() >= QUANTITY_FOGS - 1:
                 send_to_auction_or_to_cloud(client)
-            print(f'[MESSAGE] Number of messages in the queue: {message_queue.qsize()}')
+            #print(f'[MESSAGE] Number of messages in the queue: {message_queue.qsize()}')
             message_queue_mutex.notify_all()
             
 
@@ -203,7 +217,7 @@ def map_requests_to_fogs(client, messages):
     for fog, message in zip(fogs_mapped, messages):
         message['type'] = 'REDIRECT'
         message['route'].append(FOG_ID)
-        client.publish(f'fog_{fog}', dumps(message))
+        Thread(target=send_to_fog, args=(client, fog, message)).start()
 
 
 def cpu_usage_condition():
@@ -220,7 +234,7 @@ def process_message(client: mqtt.Client, message:dict):
 
 def on_connect(client, userdata, flags, rc):
         if rc == 0:
-            print(f'Fog {FOG_ID} connected to MQTT broker')
+            print(f'Fog connected to MQTT broker')
         else:
             print("Failed to connect, return code %d\n", rc)
 
@@ -228,6 +242,7 @@ def on_connect(client, userdata, flags, rc):
 def retrieve_fog_id(container):
     global FOG_ID
     FOG_ID = int(container.name.split('-')[2])
+    print(F'[SIMULATION] Fog Id Retrieved: {FOG_ID}')
 
 
 def transform_latency(latency_table):
@@ -254,7 +269,7 @@ def ping_all_fogs():
     for i in range(1, QUANTITY_FOGS + 1):
             if i != FOG_ID:
                 latency = float(ping(f'simulation-fog-{i}'))
-                latency_noise = abs(random.gauss(mu=5, sigma=2))
+                latency_noise = abs(random.gauss(mu=10, sigma=5))
                 latency_table[i] = latency + latency_noise
 
     print(f'[PING] Latency table: {latency_table}')
