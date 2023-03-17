@@ -107,7 +107,7 @@ def connect_to_broker(host, port):
 
 def send_to_fog(client, fog, message):
     global latency_table
-    print(f'[DEBUG] Latency to send message to fog {fog}: {latency_table[fog]}')
+    print(f'[DEBUG] Latency to send message to fog {fog}: {latency_table[fog]}\n', end='')
     sleep(latency_table[fog] / 1000)
     client.publish(f'fog_{fog}', dumps(message))
 
@@ -260,7 +260,7 @@ def transform_latency(latency_table):
 
 def execute_ping():
     while True:
-        sleep(10)
+        sleep(2)
         ping_all_fogs()
         
 
@@ -269,8 +269,7 @@ def ping_all_fogs():
     for i in range(1, QUANTITY_FOGS + 1):
             if i != FOG_ID:
                 latency = float(ping(f'simulation-fog-{i}'))
-                latency_noise = abs(random.gauss(mu=10, sigma=5))
-                latency_table[i] = latency + latency_noise
+                latency_table[i] = latency
 
     print(f'[PING] Latency table: {latency_table}')
 

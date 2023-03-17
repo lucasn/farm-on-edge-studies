@@ -1,7 +1,7 @@
 #!/bin/bash
 
 run_simulation () {
-    docker compose up -d
+    docker compose up -d --build
 
     previous_log=""
     while true; do
