@@ -25,6 +25,7 @@ WARMUP_TIME = int(os.environ['WARMUP_TIME'])
 received_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
 direct_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
 redirect_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
+auction_performed_counter = [0 for i in range(QUANTITY_FOGS)]
 
 cpu_usage_from_docker = [[] for i in range(QUANTITY_FOGS + 1)]
 mem_usage_from_docker = [[] for i in range(QUANTITY_FOGS + 1)]
@@ -196,6 +197,9 @@ def on_message(client, userdata, message):
             response_time_instant.append(parsed_message['timestamp'])
             response_time_value.append(parsed_message['response_time'])
 
+        elif parsed_message['data'] == 'AUCTION_PERFORMED':
+            auction_performed_counter[parsed_message['id'] - 1] += 1
+
 
 def on_connect(client, userdata, flags, rc):
         if rc == 0:
@@ -251,9 +255,17 @@ def save_data():
     save_cpu_usage_data(results_path)
     save_mem_usage_data(results_path)
     save_response_time_data(results_path)
+    save_auction_performed_data(results_path)
     save_enviromment(results_path)
 
     print("[DATA] Data saved with sucess")
+
+
+def save_auction_performed_data(results_path):
+    auction_df = pd.DataFrame()
+    auction_df['fog_label'] = [i + 1 for i in range(QUANTITY_FOGS)]
+    auction_df['auction_performed_counter'] = auction_performed_counter
+    auction_df.to_csv(f'{results_path}/auction_performed.csv', index=False)
 
 
 def save_messages_data(results_path: str):

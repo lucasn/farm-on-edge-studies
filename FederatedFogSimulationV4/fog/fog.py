@@ -208,6 +208,11 @@ def send_to_auction_or_to_cloud(client):
     if len(redirect_messages) > 0:
         if ACTIVATE_AUCTION:
             Thread(target=run_auction, args=(client, redirect_messages)).start()
+            data_report_message = {
+                'id': FOG_ID,
+                'data': 'AUCTION_PERFORMED'
+            }
+            client.publish('data', dumps(data_report_message))
         else:
             Thread(target=map_requests_to_fogs, args=(client, redirect_messages)).start()
 

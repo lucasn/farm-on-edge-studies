@@ -1,5 +1,5 @@
 from utils import open_results, calculate_confidence_interval
-from json import dumps
+from json import dumps, dump
 import numpy as np
 import matplotlib.pyplot as plt
 
@@ -34,19 +34,7 @@ def main():
         config['without_auction_response_time_confidence_interval'] = calculate_confidence_interval(
             sample=config['without_auction_response_time_mean'],
             confidence_level=0.95
-        )
-
-    debug_conf_interval = {
-        'auction_mean': config['with_auction_response_time_mean'],
-        'no_auction_mean': config['without_auction_response_time_mean'],
-        'auction_conf_interval': config['with_auction_response_time_confidence_interval'],
-        'no_auction_conf_interval': config['without_auction_response_time_confidence_interval']
-    }
-
-    debug_conf_interval = dumps(debug_conf_interval)
-    with open('debug_conf_interval.json', 'w') as f:
-        f.write(debug_conf_interval)
-    
+        )    
     
     y_with_auction = []
     y_without_auction = []
@@ -95,6 +83,24 @@ def main():
     plt.legend()
     plt.savefig(f'aggregate/{filename}.png')
 
+    auction_performed_json = []
+    for config in configs:
+        
+        auction_performed_mean_by_repetition = []
+        for repetition in config['with_auction_data']:
+            auction_performed_mean_by_repetition.append(repetition['auction_performed']['auction_performed_counter'].sum())
+        
+        actual_entry = {
+            'QUANTITY_FOGS': config['QUANTITY_FOGS'],
+            'QUANTITY_CLIENTS': config['QUANTITY_CLIENTS'],
+            'AUCTION_PERFORMED_MEAN': np.mean(auction_performed_mean_by_repetition),
+            'AUCTION_PERFORMED_STD': np.std(auction_performed_mean_by_repetition)
+        }
+
+        auction_performed_json.append(actual_entry)
+
+    with open(f'aggregate/{filename}.json', 'w') as auction_performed_file:
+        dump(obj=auction_performed_json, fp=auction_performed_file, indent=4)
 
 
 def read_repetitions(file, number_of_reps):

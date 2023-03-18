@@ -11,13 +11,15 @@ def open_results(results_path):
     cpu_df = pd.read_csv(f'{results_path}/cpu.csv')
     memory_df = pd.read_csv(f'{results_path}/memory.csv')
     response_time_df = pd.read_csv(f'{results_path}/response_time.csv')
+    auction_performed_df = pd.read_csv(f'{results_path}/auction_performed.csv')
 
     return {
         'env': env,
         'messages': messages_df,
         'cpu': cpu_df,
         'memory': memory_df,
-        'response_time': response_time_df
+        'response_time': response_time_df,
+        'auction_performed': auction_performed_df
     }
 
 
