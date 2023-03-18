@@ -127,14 +127,24 @@ def run_auction(client: mqtt.Client, auction_messages: list):
     actual_latency_table = transform_latency(actual_latency_table)
     #print(f'[x] Tabela transformada: {actual_latency_table}')
 
+
+    for i, value in enumerate(actual_latency_table):
+        actual_latency_table[i] = int(round(value, 3) * 1000)
+
+    #print(f'[DEBUG] Actual Latency table: {actual_latency_table}')
+
     for i in range(messages_number):
         for j in range(QUANTITY_FOGS):
             latency_benefits.append(actual_latency_table)
 
+
+
+    #print(f'[DEBUG] Tabela de benefícios: {latency_benefits}')
+
     # the return for the auction algorithm is a array where the indexes
     # are the messages are the values in the indexes are the fogs that
     # match those messages
-    results = hold_auction(QUANTITY_FOGS, messages_number, latency_benefits)
+    results = hold_auction(QUANTITY_FOGS, messages_number, latency_benefits, )
 
     # we add 1 to the destination fog value because the fogs are indexed in 1
     for message_index, destination_fog in enumerate(results):
@@ -143,8 +153,8 @@ def run_auction(client: mqtt.Client, auction_messages: list):
         message['route'].append(FOG_ID)
         message['type'] = 'REDIRECT'
 
-        #(f'Enviando mensagem {message_index} para fog {destination_fog + 1}')
-        Thread(target=send_to_fog, args=(client, destination_fog + 1, message)).start()
+        print(f'[AUCTION] Enviando mensagem {message_index} para fog {destination_fog + 1}')
+        Thread(target=send_to_fog, args=(client, destination_fog + 1, message, (1/messages_number) - 0.0001)).start()
 
 
 def on_message(client: mqtt.Client, userdata, message):
@@ -276,7 +286,7 @@ def ping_all_fogs():
                 latency = float(ping(f'simulation-fog-{i}'))
                 latency_table[i] = latency
 
-    print(f'[PING] Latency table: {latency_table}')
+    #print(f'[PING] Latency table: {latency_table}')
 
 class RepeatTimer(Timer):  
     def run(self):  

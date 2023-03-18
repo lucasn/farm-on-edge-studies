@@ -6,9 +6,8 @@ from random import randint
 # Tabela de benefícios -> Pessoas x Objetos
 
 INFINITY = 10000
-EPSILON = 0.5
 
-def hold_auction(n_objects: int, n_persons: int, benefits: list):
+def hold_auction(n_objects: int, n_persons: int, benefits: list, epsilon: float):
     # initialize all prices and profits with zero
     prices = []
     profits = []
@@ -35,7 +34,7 @@ def hold_auction(n_objects: int, n_persons: int, benefits: list):
         # calculate price increment
         best_object_value = benefits[person][best_object] - prices[best_object]
         second_best_object_value = benefits[person][second_best_object] - prices[second_best_object]
-        increment = best_object_value - second_best_object_value + EPSILON
+        increment = best_object_value - second_best_object_value + epsilon
 
         # the increment always should be positive
         assert increment > 0
