@@ -8,7 +8,7 @@ import docker
 from socket import gethostbyname
 from processing import process
 from ping import ping
-from time import sleep
+from time import sleep, time
 import random
 
 from asymmetric_auction import hold_auction
@@ -108,8 +108,18 @@ def connect_to_broker(host, port):
 def send_to_fog(client, fog, message):
     global latency_table
     print(f'[DEBUG] Latency to send message to fog {fog}: {latency_table[fog]}\n', end='')
+
+    message['time_in_fog'] += calculate_time_in_fog(message)
+
     sleep(latency_table[fog] / 1000)
     client.publish(f'fog_{fog}', dumps(message))
+
+
+def calculate_time_in_fog(message):
+    arrival_time = message['arrival_time']
+    del message['arrival_time']
+    exit_time = time()
+    return exit_time - arrival_time
 
 
 def run_auction(client: mqtt.Client, auction_messages: list):
@@ -144,7 +154,7 @@ def run_auction(client: mqtt.Client, auction_messages: list):
     # the return for the auction algorithm is a array where the indexes
     # are the messages are the values in the indexes are the fogs that
     # match those messages
-    results = hold_auction(QUANTITY_FOGS, messages_number, latency_benefits, )
+    results = hold_auction(QUANTITY_FOGS, messages_number, latency_benefits, (1/messages_number) - 0.0001)
 
     # we add 1 to the destination fog value because the fogs are indexed in 1
     for message_index, destination_fog in enumerate(results):
@@ -154,7 +164,7 @@ def run_auction(client: mqtt.Client, auction_messages: list):
         message['type'] = 'REDIRECT'
 
         print(f'[AUCTION] Enviando mensagem {message_index} para fog {destination_fog + 1}')
-        Thread(target=send_to_fog, args=(client, destination_fog + 1, message, (1/messages_number) - 0.0001)).start()
+        Thread(target=send_to_fog, args=(client, destination_fog + 1, message)).start()
 
 
 def on_message(client: mqtt.Client, userdata, message):
@@ -166,6 +176,8 @@ def on_message(client: mqtt.Client, userdata, message):
         return
 
     parsed_message = loads(message.payload)
+    parsed_message['arrival_time'] = time()
+
     data_report_message = {
         'id': FOG_ID,
         'data': 'MESSAGE_RECEIVED'
@@ -213,6 +225,7 @@ def send_to_auction_or_to_cloud(client):
             redirect_messages.append(message)
         else:
             message['route'].append(FOG_ID)
+            message['time_in_fog'] += calculate_time_in_fog(message)
             client.publish('cloud', dumps(message))
     
     if len(redirect_messages) > 0:
@@ -240,9 +253,10 @@ def cpu_usage_condition():
     return cpu_usage < MESSAGE_PROCESSING_CPU_THRESHOLD
 
 
-def process_message(client: mqtt.Client, message:dict):
+def process_message(client: mqtt.Client, message: dict):
     process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=PROCESS_MESSAGE_FUNCTION_REPEAT)
     message['route'].append(FOG_ID)
+    message['time_in_fog'] += calculate_time_in_fog(message)
     client.publish('client', dumps(message))
     #print('[x] Mensagem processada')
 

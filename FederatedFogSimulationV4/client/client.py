@@ -34,7 +34,9 @@ def send_message(mqtt_client, client_id):
             'id': message_id,
             'type': 'DIRECT',
             'client_id': client_id,
-            'route': [client_id]
+            'route': [client_id],
+            'time_in_fog': 0,
+            'time_in_cloud': 0
         }
         message_topic = f'fog_{selected_fog}'
 
@@ -66,11 +68,16 @@ def on_message(client, userdata, message):
         response_time = time() - start_time
         print(f'Mensagem {parsed_message["id"]} recebida | Tempo de resposta: {response_time} s')
         print(f'Rota da mensagem: {parsed_message["route"]}')
+        print(f'Tempo em fogs: {parsed_message["time_in_fog"]} s')
+        print(f'Tempo na cloud: {parsed_message["time_in_cloud"]} s')
+
         data_report_message = {
             'data': 'RESPONSE_TIME',
             'response_time': response_time,
-            'timestamp': datetime.now().isoformat()
+            'timestamp': datetime.now().isoformat(),
+            'response_by_cloud': 'cloud' in parsed_message["route"]
         }
+
         client.publish('data', dumps(data_report_message))
 
     else:
