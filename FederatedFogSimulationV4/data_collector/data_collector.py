@@ -33,6 +33,7 @@ docker_time_reference = []
 
 response_time_instant = []
 response_time_value = []
+response_resolved_in_cloud = []
 
 simulation_start_timestamp = None
 
@@ -196,6 +197,7 @@ def on_message(client, userdata, message):
         elif parsed_message['data'] == 'RESPONSE_TIME':
             response_time_instant.append(parsed_message['timestamp'])
             response_time_value.append(parsed_message['response_time'])
+            response_resolved_in_cloud.append(int(parsed_message['response_by_cloud']))
 
         elif parsed_message['data'] == 'AUCTION_PERFORMED':
             auction_performed_counter[parsed_message['id'] - 1] += 1
@@ -319,6 +321,8 @@ def save_response_time_data(results_path: str):
     response_time_df = pd.DataFrame()
     response_time_df['instant'] = converted_time
     response_time_df['response_time'] = response_time_value
+    response_time_df['resolved_by_cloud'] = response_resolved_in_cloud
+    
     response_time_df.to_csv(f'{results_path}/response_time.csv', index=False)
 
 def save_enviromment(results_path: str):
