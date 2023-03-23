@@ -20,7 +20,11 @@ PROCESS_MESSAGE_LEADING_ZEROS = int(os.environ['PROCESS_MESSAGE_LEADING_ZEROS'])
 PROCESS_MESSAGE_FUNCTION_REPEAT = int(os.environ['PROCESS_MESSAGE_FUNCTION_REPEAT'])
 ACTIVATE_AUCTION = bool(int(os.environ['ACTIVATE_AUCTION']))
 
-latency_table = [0] * (QUANTITY_FOGS + 1) # we add 1 because we consider that fog 0 is the cloud
+federation_info = {
+    'latency': [0] * (QUANTITY_FOGS + 1), # we add 1 because we consider that fog 0 is the cloud
+    'cpu_usage': [0] * (QUANTITY_FOGS + 1)
+}   
+
 cpu_usage = 0.0
 
 message_queue = Queue()
@@ -45,15 +49,9 @@ def start_simulation(client):
 
     retrieve_fog_id(container)
 
-    ping_all_fogs()
-
     client.subscribe(f'fog_{FOG_ID}')
 
-    ping_thread = Thread(target=execute_ping)
-    ping_thread.start()
-
-    update_cpu_thread = Thread(target=update_cpu_usage, args=(container,))
-    update_cpu_thread.start()
+    RepeatTimer(interval=2, function=request_federation_info, args=(client,)).start()
 
     handle_messages_thread = Thread(target=handle_messages, args=(client,))
     handle_messages_thread.start()
@@ -186,15 +184,29 @@ def on_message(client: mqtt.Client, userdata, message):
 
     client.publish('data', dumps(data_report_message))
     
-    if parsed_message['type'] in ['DIRECT', 'REDIRECT']:
-        #print('[MESSAGE] Mensagem Recebida')
+    if parsed_message['type'] == 'REQUEST_FEDERATION_INFO':
+        handle_request_federation_info(client, parsed_message)
+
+    elif parsed_message['type'] in ['DIRECT', 'REDIRECT']:
         with message_queue_mutex:
             message_queue.put(parsed_message)
             if message_queue.qsize() >= QUANTITY_FOGS - 1:
                 send_to_auction_or_to_cloud(client)
-            #print(f'[MESSAGE] Number of messages in the queue: {message_queue.qsize()}')
             message_queue_mutex.notify_all()
-            
+
+
+def handle_request_federation_info(client, parsed_message):
+    response = dumps({
+        'id': FOG_ID,
+        'type': 'RESPONSE_FEDERATION_INFO',
+        'request_sent_time': parsed_message['sent_time'],
+        'cpu_usage': cpu_usage 
+    })
+
+    sender_fog = parsed_message['id']
+
+    client.publish(f'fog_{sender_fog}', response)
+
 
 def handle_messages(client: mqtt.Client):
     global cpu_usage, cpu_usage_mutex, message_queue_mutex, message_queue
@@ -287,20 +299,16 @@ def transform_latency(latency_table):
     return transformed_latency
 
 
-def execute_ping():
-    while True:
-        sleep(2)
-        ping_all_fogs()
-        
-
-def ping_all_fogs():
-    global latency_table
+def request_federation_info(client):
     for i in range(1, QUANTITY_FOGS + 1):
-            if i != FOG_ID:
-                latency = float(ping(f'simulation-fog-{i}'))
-                latency_table[i] = latency
-
-    #print(f'[PING] Latency table: {latency_table}')
+        if i != FOG_ID:
+            message = dumps({
+                'id': FOG_ID,
+                'type': 'REQUEST_FEDERATION_INFO',
+                'sent_time': time()
+            })
+            client.publish(f'fog_{i}', message)
+            
 
 class RepeatTimer(Timer):  
     def run(self):  
