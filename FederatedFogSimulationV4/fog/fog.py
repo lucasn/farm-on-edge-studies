@@ -8,7 +8,7 @@ import docker
 from socket import gethostbyname
 from processing import process
 from ping import ping
-from time import sleep, time
+from time import sleep, time, time_ns
 import random
 
 from asymmetric_auction import hold_auction
@@ -52,6 +52,9 @@ def start_simulation(client):
     client.subscribe(f'fog_{FOG_ID}')
 
     RepeatTimer(interval=2, function=request_federation_info, args=(client,)).start()
+
+    update_cpu_thread = Thread(target=update_cpu_usage, args=(container,))     
+    update_cpu_thread.start()
 
     handle_messages_thread = Thread(target=handle_messages, args=(client,))
     handle_messages_thread.start()
@@ -175,19 +178,22 @@ def on_message(client: mqtt.Client, userdata, message):
 
     parsed_message = loads(message.payload)
     parsed_message['arrival_time'] = time()
-
-    data_report_message = {
-        'id': FOG_ID,
-        'data': 'MESSAGE_RECEIVED'
-    }
-    data_report_message['type'] = parsed_message['type']
-
-    client.publish('data', dumps(data_report_message))
     
     if parsed_message['type'] == 'REQUEST_FEDERATION_INFO':
         handle_request_federation_info(client, parsed_message)
 
+    elif parsed_message['type'] == 'RESPONSE_FEDERATION_INFO':
+        handle_response_federation_info(parsed_message)
+
     elif parsed_message['type'] in ['DIRECT', 'REDIRECT']:
+        data_report_message = {
+            'id': FOG_ID,
+            'data': 'MESSAGE_RECEIVED'
+        }
+        data_report_message['type'] = parsed_message['type']
+
+        client.publish('data', dumps(data_report_message))
+
         with message_queue_mutex:
             message_queue.put(parsed_message)
             if message_queue.qsize() >= QUANTITY_FOGS - 1:
@@ -196,6 +202,7 @@ def on_message(client: mqtt.Client, userdata, message):
 
 
 def handle_request_federation_info(client, parsed_message):
+    global cpu_usage
     response = dumps({
         'id': FOG_ID,
         'type': 'RESPONSE_FEDERATION_INFO',
@@ -206,6 +213,18 @@ def handle_request_federation_info(client, parsed_message):
     sender_fog = parsed_message['id']
 
     client.publish(f'fog_{sender_fog}', response)
+
+
+def handle_response_federation_info(parsed_message):
+    global federation_info
+    received_time = time_ns()
+    response_fog = parsed_message['id']
+
+    federation_info['latency'][response_fog] = (received_time - parsed_message['request_sent_time']) / 1e6 # saving in milliseconds
+    federation_info['cpu_usage'][response_fog] = parsed_message['cpu_usage']
+
+    print(f'[DEBUG] Federation info updated in {response_fog}! {federation_info}')
+
 
 
 def handle_messages(client: mqtt.Client):
@@ -305,7 +324,7 @@ def request_federation_info(client):
             message = dumps({
                 'id': FOG_ID,
                 'type': 'REQUEST_FEDERATION_INFO',
-                'sent_time': time()
+                'sent_time': time_ns()
             })
             client.publish(f'fog_{i}', message)
             
