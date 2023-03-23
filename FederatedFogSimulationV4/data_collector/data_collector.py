@@ -223,7 +223,7 @@ def start_simulation(client: mqtt.Client):
     global simulation_start_timestamp
     print('[SIMULATION] Starting fogs...')
     client.publish('start_fogs')
-    sleep(1)
+    sleep(QUANTITY_FOGS)
     print('[SIMULATION] Starting clients...')
     client.publish('start')
 

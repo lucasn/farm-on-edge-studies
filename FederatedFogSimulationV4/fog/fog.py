@@ -22,7 +22,7 @@ ACTIVATE_AUCTION = bool(int(os.environ['ACTIVATE_AUCTION']))
 
 federation_info = {
     'latency': [0] * (QUANTITY_FOGS + 1), # we add 1 because we consider that fog 0 is the cloud
-    'cpu_usage': [0] * (QUANTITY_FOGS + 1)
+    'cpu_free': [0] * (QUANTITY_FOGS + 1)
 }   
 
 cpu_usage = 0.0
@@ -40,6 +40,8 @@ def main():
 
     client = connect_to_broker(gethostbyname('mosquitto'), 1883)
     client.subscribe('start_fogs')
+
+    request_federation_info(client)
 
     client.loop_forever()
 
@@ -107,12 +109,12 @@ def connect_to_broker(host, port):
 
 
 def send_to_fog(client, fog, message):
-    global latency_table
-    print(f'[DEBUG] Latency to send message to fog {fog}: {latency_table[fog]}\n', end='')
+    global federation_info
+    print(f'[DEBUG] Latency to send message to fog {fog}: {federation_info["latency"][fog]}\n', end='')
 
     message['time_in_fog'] += calculate_time_in_fog(message)
 
-    sleep(latency_table[fog] / 1000)
+    sleep(federation_info['latency'][fog] / 1000)
     client.publish(f'fog_{fog}', dumps(message))
 
 
@@ -124,9 +126,9 @@ def calculate_time_in_fog(message):
 
 
 def run_auction(client: mqtt.Client, auction_messages: list):
-    global latency_table
+    global federation_info
 
-    actual_latency_table = deepcopy(latency_table)
+    actual_latency_table = deepcopy(federation_info['latency'])
 
     del actual_latency_table[0] # removing the cloud from the auction
     
@@ -147,15 +149,26 @@ def run_auction(client: mqtt.Client, auction_messages: list):
     for i in range(messages_number):
         for j in range(QUANTITY_FOGS):
             latency_benefits.append(actual_latency_table)
+    
+    benefits = []
 
+    for i in range(messages_number):
+        benefits_for_current_message = actual_latency_table
+        print(f"[DEBUG] Message[{i}]: {auction_messages[i]['function_repeat']}")
+        for j in range(QUANTITY_FOGS):
+            if j != FOG_ID-1:
+                benefits_for_current_message[j] += auction_messages[i]['function_repeat'] * federation_info['cpu_free'][j]
+        print(f"[DEBUG] Benefit for current message: {benefits_for_current_message}")
+        benefits.append(benefits_for_current_message)
 
+    print(f'[AUCTION] Benefits: {benefits}')
 
     #print(f'[DEBUG] Tabela de benefícios: {latency_benefits}')
 
     # the return for the auction algorithm is a array where the indexes
     # are the messages are the values in the indexes are the fogs that
     # match those messages
-    results = hold_auction(QUANTITY_FOGS, messages_number, latency_benefits, (1/messages_number) - 0.0001)
+    results = hold_auction(QUANTITY_FOGS, messages_number, benefits, (1/messages_number) - 0.0001)
 
     # we add 1 to the destination fog value because the fogs are indexed in 1
     for message_index, destination_fog in enumerate(results):
@@ -169,7 +182,7 @@ def run_auction(client: mqtt.Client, auction_messages: list):
 
 
 def on_message(client: mqtt.Client, userdata, message):
-    global message_queue, latency_table, message_queue_mutex
+    global message_queue, message_queue_mutex
 
     if message.topic == 'start_fogs':
         print('[SIMULATION] Starting simulation...')
@@ -207,7 +220,7 @@ def handle_request_federation_info(client, parsed_message):
         'id': FOG_ID,
         'type': 'RESPONSE_FEDERATION_INFO',
         'request_sent_time': parsed_message['sent_time'],
-        'cpu_usage': cpu_usage 
+        'cpu_free': max(100 - cpu_usage, 0) 
     })
 
     sender_fog = parsed_message['id']
@@ -221,7 +234,7 @@ def handle_response_federation_info(parsed_message):
     response_fog = parsed_message['id']
 
     federation_info['latency'][response_fog] = (received_time - parsed_message['request_sent_time']) / 1e6 # saving in milliseconds
-    federation_info['cpu_usage'][response_fog] = parsed_message['cpu_usage']
+    federation_info['cpu_free'][response_fog] = parsed_message['cpu_free']
 
     print(f'[DEBUG] Federation info updated in {response_fog}! {federation_info}')
 
@@ -285,7 +298,7 @@ def cpu_usage_condition():
 
 
 def process_message(client: mqtt.Client, message: dict):
-    process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=PROCESS_MESSAGE_FUNCTION_REPEAT)
+    process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=message['function_repeat'])
     message['route'].append(FOG_ID)
     message['time_in_fog'] += calculate_time_in_fog(message)
     client.publish('client', dumps(message))

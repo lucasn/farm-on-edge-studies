@@ -34,6 +34,7 @@ def send_message(mqtt_client, client_id):
             'id': message_id,
             'type': 'DIRECT',
             'client_id': client_id,
+            'function_repeat': randint(5, 10),
             'route': [client_id],
             'time_in_fog': 0,
             'time_in_cloud': 0
