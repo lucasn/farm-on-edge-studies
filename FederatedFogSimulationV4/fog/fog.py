@@ -22,7 +22,7 @@ ACTIVATE_AUCTION = bool(int(os.environ['ACTIVATE_AUCTION']))
 
 federation_info = {
     'latency': [0] * (QUANTITY_FOGS + 1), # we add 1 because we consider that fog 0 is the cloud
-    'cpu_free': [0] * (QUANTITY_FOGS + 1)
+    'cpu_usage': [0] * (QUANTITY_FOGS + 1)
 }   
 
 cpu_usage = 0.0
@@ -110,7 +110,7 @@ def connect_to_broker(host, port):
 
 def send_to_fog(client, fog, message):
     global federation_info
-    print(f'[DEBUG] Latency to send message to fog {fog}: {federation_info["latency"][fog]}\n', end='')
+    #print(f'[DEBUG] Latency to send message to fog {fog}: {federation_info["latency"][fog]}\n', end='')
 
     message['time_in_fog'] += calculate_time_in_fog(message)
 
@@ -146,19 +146,35 @@ def run_auction(client: mqtt.Client, auction_messages: list):
 
     #print(f'[DEBUG] Actual Latency table: {actual_latency_table}')
 
-    for i in range(messages_number):
-        for j in range(QUANTITY_FOGS):
-            latency_benefits.append(actual_latency_table)
+    # for i in range(messages_number):
+    #     for j in range(QUANTITY_FOGS):
+    #         latency_benefits.append(actual_latency_table)
     
     benefits = []
 
+    max_cpu_usage = max(federation_info['cpu_usage'])
+    if max_cpu_usage == 0:
+        max_cpu_usage = 1
+    max_function_repeat = max([message['function_repeat'] for message in auction_messages])
+    max_actual_latency = max(actual_latency_table)
+
+    print(f"[DEBUG] Messages for auction: {messages_number}")
     for i in range(messages_number):
-        benefits_for_current_message = actual_latency_table
-        print(f"[DEBUG] Message[{i}]: {auction_messages[i]['function_repeat']}")
+        benefits_for_current_message = []
         for j in range(QUANTITY_FOGS):
             if j != FOG_ID-1:
-                benefits_for_current_message[j] += auction_messages[i]['function_repeat'] * federation_info['cpu_free'][j]
-        print(f"[DEBUG] Benefit for current message: {benefits_for_current_message}")
+                # print(f"[DEBUG] benefits_for_current_message[{j}]: {actual_latency_table[j]}")
+                # print(f"[DEBUG] Message[{i}]: Function repeat = {auction_messages[i]['function_repeat']}")
+                # print(f"[DEBUG] federation_info[cpu_usage][{j}]: {federation_info['cpu_usage'][j]}")
+                # print(f"[DEBUG] Benefit[{i}][{j}] = {actual_latency_table[j] + (auction_messages[i]['function_repeat'] * federation_info['cpu_usage'][j])}")
+                normalized_actual_latency = 100 * actual_latency_table[j] / max_actual_latency
+                normalized_cpu = 100 * federation_info['cpu_usage'][j] / max_cpu_usage
+                normalized_function_repeat = 100 * auction_messages[i]['function_repeat'] / max_function_repeat
+                current_benefit = normalized_actual_latency + abs(normalized_cpu - normalized_function_repeat)
+                benefits_for_current_message.append(current_benefit)
+            else:
+                benefits_for_current_message.append(0)
+        print(f"[DEBUG] Benefit for current message: {benefits_for_current_message}\n")
         benefits.append(benefits_for_current_message)
 
     print(f'[AUCTION] Benefits: {benefits}')
@@ -220,7 +236,7 @@ def handle_request_federation_info(client, parsed_message):
         'id': FOG_ID,
         'type': 'RESPONSE_FEDERATION_INFO',
         'request_sent_time': parsed_message['sent_time'],
-        'cpu_free': max(100 - cpu_usage, 0) 
+        'cpu_usage': cpu_usage
     })
 
     sender_fog = parsed_message['id']
@@ -234,9 +250,9 @@ def handle_response_federation_info(parsed_message):
     response_fog = parsed_message['id']
 
     federation_info['latency'][response_fog] = (received_time - parsed_message['request_sent_time']) / 1e6 # saving in milliseconds
-    federation_info['cpu_free'][response_fog] = parsed_message['cpu_free']
+    federation_info['cpu_usage'][response_fog] = parsed_message['cpu_usage']
 
-    print(f'[DEBUG] Federation info updated in {response_fog}! {federation_info}')
+    #print(f'[DEBUG] Federation info updated in {response_fog}! {federation_info}')
 
 
 
