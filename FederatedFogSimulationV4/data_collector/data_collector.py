@@ -4,6 +4,7 @@ from threading import Timer, Thread
 from json import loads, dump
 import os
 from time import sleep
+import csv
 
 import pandas as pd
 import paho.mqtt.client as mqtt
@@ -25,7 +26,7 @@ WARMUP_TIME = int(os.environ['WARMUP_TIME'])
 received_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
 direct_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
 redirect_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
-auction_performed_counter = [0 for i in range(QUANTITY_FOGS)]
+auction_performed = [[] for i in range(QUANTITY_FOGS)]
 
 cpu_usage_from_docker = [[] for i in range(QUANTITY_FOGS + 1)]
 mem_usage_from_docker = [[] for i in range(QUANTITY_FOGS + 1)]
@@ -200,7 +201,7 @@ def on_message(client, userdata, message):
             response_resolved_in_cloud.append(int(parsed_message['response_by_cloud']))
 
         elif parsed_message['data'] == 'AUCTION_PERFORMED':
-            auction_performed_counter[parsed_message['id'] - 1] += 1
+            auction_performed[parsed_message['id'] - 1].append(parsed_message['time'])
 
 
 def on_connect(client, userdata, flags, rc):
@@ -265,8 +266,10 @@ def save_data():
 
 def save_auction_performed_data(results_path):
     auction_df = pd.DataFrame()
-    auction_df['fog_label'] = [i + 1 for i in range(QUANTITY_FOGS)]
-    auction_df['auction_performed_counter'] = auction_performed_counter
+    fog_labels = [i + 1 for i in range(QUANTITY_FOGS)]
+    for index, label in enumerate(fog_labels):
+        fog_label_df = pd.DataFrame({label: auction_performed[index]})
+        auction_df = pd.concat([auction_df, fog_label_df], axis=1)
     auction_df.to_csv(f'{results_path}/auction_performed.csv', index=False)
 
 

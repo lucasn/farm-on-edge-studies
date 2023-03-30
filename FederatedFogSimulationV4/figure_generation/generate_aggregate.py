@@ -126,85 +126,27 @@ def main():
     plt.legend()
     plt.savefig(f'aggregate/{filename}_all.png')
 
-    # plt.figure()
-
-    # plt.bar(
-    #     x1, 
-    #     y_with_auction_fogs, 
-    #     color='r', 
-    #     width=1.5*barwidth, 
-    #     label='Com leilão',
-    #     edgecolor='black',
-    #     capsize=10,
-    #     yerr=confidence_interval_with_auction_fogs
-    # )
-    # plt.bar(
-    #     x2, 
-    #     y_without_auction_fogs, 
-    #     color='b', 
-    #     width=1.5*barwidth, 
-    #     label='Sem leilão',
-    #     edgecolor='black',
-    #     capsize=10,
-    #     yerr=confidence_interval_without_auction_fogs
-    # )
-
-    # plt.xlabel('Configuração do experimento')
-    # plt.ylabel('Tempo de Resposta Médio (s)')
-    # plt.xticks(
-    #     [r for r in range(len(y_with_auction))],
-    #     [f'{config["QUANTITY_FOGS"]} fogs / {config["QUANTITY_CLIENTS"]} clientes' for config in configs]
-    # )
-
-    # plt.legend()
-    # plt.savefig(f'aggregate/{filename}_fogs.png')
-
-    # plt.figure()
-
-    # plt.bar(
-    #     x1, 
-    #     y_with_auction_cloud, 
-    #     color='r', 
-    #     width=1.5*barwidth, 
-    #     label='Com leilão',
-    #     edgecolor='black',
-    #     capsize=10,
-    #     yerr=confidence_interval_with_auction_cloud
-    # )
-    # plt.bar(
-    #     x2, 
-    #     y_without_auction_cloud, 
-    #     color='b', 
-    #     width=1.5*barwidth, 
-    #     label='Sem leilão',
-    #     edgecolor='black',
-    #     capsize=10,
-    #     yerr=confidence_interval_without_auction_cloud
-    # )
-
-    # plt.xlabel('Configuração do experimento')
-    # plt.ylabel('Tempo de Resposta Médio (s)')
-    # plt.xticks(
-    #     [r for r in range(len(y_with_auction))],
-    #     [f'{config["QUANTITY_FOGS"]} fogs / {config["QUANTITY_CLIENTS"]} clientes' for config in configs]
-    # )
-
-    # plt.legend()
-    # plt.savefig(f'aggregate/{filename}_cloud.png')
-
-
     auction_performed_json = []
     for config in configs:
         
         auction_performed_mean_by_repetition = []
+        auction_time_mean_by_repetition = []
         for repetition in config['with_auction_data']:
-            auction_performed_mean_by_repetition.append(repetition['auction_performed']['auction_performed_counter'].sum())
+            all_fogs_auction = []
+            for i in range(1, config['QUANTITY_FOGS'] + 1):
+                for value in repetition['auction_performed'][str(i)]:
+                    all_fogs_auction.append(value)
+            all_fogs_cleaned = [x for x in all_fogs_auction if str(x) != 'nan']
+            auction_time_mean_by_repetition.append(np.mean(all_fogs_cleaned))
+            auction_performed_mean_by_repetition.append(len(all_fogs_cleaned))
         
         actual_entry = {
             'QUANTITY_FOGS': config['QUANTITY_FOGS'],
             'QUANTITY_CLIENTS': config['QUANTITY_CLIENTS'],
             'AUCTION_PERFORMED_MEAN': np.mean(auction_performed_mean_by_repetition),
-            'AUCTION_PERFORMED_STD': np.std(auction_performed_mean_by_repetition)
+            'AUCTION_PERFORMED_STD': np.std(auction_performed_mean_by_repetition),
+            'AUCTION_TIME_MEAN': np.mean(auction_time_mean_by_repetition),
+            'AUCTION_TIME_STD': np.std(auction_time_mean_by_repetition)
         }
 
         auction_performed_json.append(actual_entry)

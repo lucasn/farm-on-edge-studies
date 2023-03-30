@@ -158,7 +158,7 @@ def run_auction(client: mqtt.Client, auction_messages: list):
     max_function_repeat = max([message['function_repeat'] for message in auction_messages])
     max_actual_latency = max(actual_latency_table)
 
-    print(f"[DEBUG] Messages for auction: {messages_number}")
+    print(f"[DEBUG] Messages for auction: {messages_number}\n", end='')
     for i in range(messages_number):
         benefits_for_current_message = []
         for j in range(QUANTITY_FOGS):
@@ -174,17 +174,25 @@ def run_auction(client: mqtt.Client, auction_messages: list):
                 benefits_for_current_message.append(current_benefit)
             else:
                 benefits_for_current_message.append(0)
-        print(f"[DEBUG] Benefit for current message: {benefits_for_current_message}\n")
+        print(f"[DEBUG] Benefit for current message: {benefits_for_current_message}\n", end='')
         benefits.append(benefits_for_current_message)
 
     print(f'[AUCTION] Benefits: {benefits}')
 
-    #print(f'[DEBUG] Tabela de benefícios: {latency_benefits}')
-
+    auction_start = time_ns()
     # the return for the auction algorithm is a array where the indexes
     # are the messages are the values in the indexes are the fogs that
     # match those messages
     results = hold_auction(QUANTITY_FOGS, messages_number, benefits, (1/messages_number) - 0.0001)
+    auction_stop = time_ns()
+    auction_time = auction_stop - auction_start
+
+    data_report_message = {
+        'id': FOG_ID,
+        'data': 'AUCTION_PERFORMED',
+        'time': auction_time / 1e6 # transform to milliseconds
+    }
+    client.publish('data', dumps(data_report_message))
 
     # we add 1 to the destination fog value because the fogs are indexed in 1
     for message_index, destination_fog in enumerate(results):
@@ -291,11 +299,6 @@ def send_to_auction_or_to_cloud(client):
     if len(redirect_messages) > 0:
         if ACTIVATE_AUCTION:
             Thread(target=run_auction, args=(client, redirect_messages)).start()
-            data_report_message = {
-                'id': FOG_ID,
-                'data': 'AUCTION_PERFORMED'
-            }
-            client.publish('data', dumps(data_report_message))
         else:
             Thread(target=map_requests_to_fogs, args=(client, redirect_messages)).start()
 
