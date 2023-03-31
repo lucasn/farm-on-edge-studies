@@ -19,6 +19,7 @@ MESSAGE_PROCESSING_CPU_THRESHOLD = int(os.environ['MESSAGE_PROCESSING_CPU_THRESH
 PROCESS_MESSAGE_LEADING_ZEROS = int(os.environ['PROCESS_MESSAGE_LEADING_ZEROS'])
 PROCESS_MESSAGE_FUNCTION_REPEAT = int(os.environ['PROCESS_MESSAGE_FUNCTION_REPEAT'])
 ACTIVATE_AUCTION = bool(int(os.environ['ACTIVATE_AUCTION']))
+MAX_TTL = 2 * QUANTITY_FOGS
 
 federation_info = {
     'latency': [0] * (QUANTITY_FOGS + 1), # we add 1 because we consider that fog 0 is the cloud
@@ -128,6 +129,8 @@ def calculate_time_in_fog(message):
 def run_auction(client: mqtt.Client, auction_messages: list):
     global federation_info
 
+    start_time = time()
+
     actual_latency_table = deepcopy(federation_info['latency'])
 
     del actual_latency_table[0] # removing the cloud from the auction
@@ -174,10 +177,10 @@ def run_auction(client: mqtt.Client, auction_messages: list):
                 benefits_for_current_message.append(current_benefit)
             else:
                 benefits_for_current_message.append(0)
-        print(f"[DEBUG] Benefit for current message: {benefits_for_current_message}\n", end='')
+        #print(f"[DEBUG] Benefit for current message: {benefits_for_current_message}\n", end='')
         benefits.append(benefits_for_current_message)
 
-    print(f'[AUCTION] Benefits: {benefits}')
+    #print(f'[AUCTION] Benefits: {benefits}')
 
     auction_start = time_ns()
     # the return for the auction algorithm is a array where the indexes
@@ -194,12 +197,19 @@ def run_auction(client: mqtt.Client, auction_messages: list):
     }
     client.publish('data', dumps(data_report_message))
 
+    end_time = time()
+
     # we add 1 to the destination fog value because the fogs are indexed in 1
     for message_index, destination_fog in enumerate(results):
         message = auction_messages[message_index]
 
         message['route'].append(FOG_ID)
         message['type'] = 'REDIRECT'
+
+        message['times'][-1]['auction_total'] = end_time - start_time
+        message['times'][-1]['fog_total'] = time() - message['times'][-1]['fog_in']
+        del message['times'][-1]['fog_in']
+        message['times'][-1]['sent_time'] = time()
 
         print(f'[AUCTION] Enviando mensagem {message_index} para fog {destination_fog + 1}')
         Thread(target=send_to_fog, args=(client, destination_fog + 1, message)).start()
@@ -231,10 +241,20 @@ def on_message(client: mqtt.Client, userdata, message):
 
         client.publish('data', dumps(data_report_message))
 
+        actual_time = time()
+        sent_time = parsed_message['times'][-1]['sent_time']
+        del parsed_message['times'][-1]['sent_time']
+        parsed_message['times'].append({
+            'fog_id': FOG_ID,
+            'incoming_time': actual_time - sent_time,
+            'fog_in': actual_time,
+            'queue_in': actual_time
+        })
+
         with message_queue_mutex:
             message_queue.put(parsed_message)
             if message_queue.qsize() >= QUANTITY_FOGS - 1:
-                send_to_auction_or_to_cloud(client)
+                send_to_auction_or_discard(client)
             message_queue_mutex.notify_all()
 
 
@@ -276,6 +296,8 @@ def handle_messages(client: mqtt.Client):
 
                 else:
                     message = message_queue.get()
+                    message['times'][-1]['queue_total'] = time() - message['times'][-1]['queue_in']
+                    del message['times'][-1]['queue_in']
                     process_thread = Thread(target=process_message, args=(client, message))
                     process_thread.start()
 
@@ -284,17 +306,24 @@ def handle_messages(client: mqtt.Client):
                 cpu_usage_mutex.wait_for(cpu_usage_condition)
 
 
-def send_to_auction_or_to_cloud(client):
+def send_to_auction_or_discard(client):
     redirect_messages = []
         
     for _ in range(QUANTITY_FOGS-1):
         message = message_queue.get()
-        if message['type'] == 'DIRECT':
+        message['times'][-1]['queue_total'] = time() - message['times'][-1]['queue_in']
+        del message['times'][-1]['queue_in']
+        if message['ttl'] <= MAX_TTL:
+            print(f'[MESSAGE] Adding message to redirect queue - TTL: {message["ttl"]}')
+            message['ttl'] += 1
             redirect_messages.append(message)
         else:
-            message['route'].append(FOG_ID)
-            message['time_in_fog'] += calculate_time_in_fog(message)
-            client.publish('cloud', dumps(message))
+            print(f'[MESSAGE] Message Lost')
+            data_report_message = {
+                'id': FOG_ID,
+                'data': 'MESSAGE_LOST'
+            }
+            client.publish('data', dumps(data_report_message))
     
     if len(redirect_messages) > 0:
         if ACTIVATE_AUCTION:
@@ -306,6 +335,9 @@ def send_to_auction_or_to_cloud(client):
 def map_requests_to_fogs(client, messages):
     fogs_mapped = random.sample(range(1, QUANTITY_FOGS + 1), len(messages))
     for fog, message in zip(fogs_mapped, messages):
+        message['times'][-1]['fog_total'] = time() - message['times'][-1]['fog_in']
+        del message['times'][-1]['fog_in']
+        message['times'][-1]['sent_time'] = time()
         message['type'] = 'REDIRECT'
         message['route'].append(FOG_ID)
         Thread(target=send_to_fog, args=(client, fog, message)).start()
@@ -317,9 +349,15 @@ def cpu_usage_condition():
 
 
 def process_message(client: mqtt.Client, message: dict):
+    start_time = time()
     process(leading_zeros=PROCESS_MESSAGE_LEADING_ZEROS, times=message['function_repeat'])
+    end_time = time()
+    message['times'][-1]['process_total'] = end_time - start_time
     message['route'].append(FOG_ID)
     message['time_in_fog'] += calculate_time_in_fog(message)
+    message['times'][-1]['fog_total'] = time() - message['times'][-1]['fog_in']
+    del message['times'][-1]['fog_in']
+    message['times'][-1]['sent_time'] = time()
     client.publish('client', dumps(message))
     #print('[x] Mensagem processada')
 

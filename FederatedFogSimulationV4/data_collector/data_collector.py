@@ -18,7 +18,6 @@ MESSAGE_PROCESSING_CPU_THRESHOLD = int(os.environ['MESSAGE_PROCESSING_CPU_THRESH
 SIMULATION_TIME = int(os.environ['SIMULATION_TIME'])
 WARMUP_TIME = float(os.environ['WARMUP_TIME'])
 ACTIVATE_AUCTION = bool(int(os.environ['ACTIVATE_AUCTION']))
-CLOUD_LATENCY = int(os.environ['CLOUD_LATENCY'])
 PROCESS_MESSAGE_LEADING_ZEROS = int(os.environ['PROCESS_MESSAGE_LEADING_ZEROS'])
 PROCESS_MESSAGE_FUNCTION_REPEAT = int(os.environ['PROCESS_MESSAGE_FUNCTION_REPEAT'])
 WARMUP_TIME = int(os.environ['WARMUP_TIME'])
@@ -26,6 +25,7 @@ WARMUP_TIME = int(os.environ['WARMUP_TIME'])
 received_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
 direct_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
 redirect_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
+lost_messages_counter = [0 for i in range(QUANTITY_FOGS + 1)]
 auction_performed = [[] for i in range(QUANTITY_FOGS)]
 
 cpu_usage_from_docker = [[] for i in range(QUANTITY_FOGS + 1)]
@@ -203,6 +203,9 @@ def on_message(client, userdata, message):
         elif parsed_message['data'] == 'AUCTION_PERFORMED':
             auction_performed[parsed_message['id'] - 1].append(parsed_message['time'])
 
+        elif parsed_message['data'] == 'MESSAGE_LOST': 
+            lost_messages_counter[parsed_message['id'] - 1] += 1
+
 
 def on_connect(client, userdata, flags, rc):
         if rc == 0:
@@ -279,6 +282,7 @@ def save_messages_data(results_path: str):
     messages_df['received_messages_counter'] = received_messages_counter
     messages_df['direct_messages_counter'] = direct_messages_counter
     messages_df['redirect_messages_counter'] = redirect_messages_counter
+    messages_df['lost_messages'] = lost_messages_counter
     messages_df.to_csv(f'{results_path}/messages.csv', index=False)
 
 
@@ -335,7 +339,6 @@ def save_enviromment(results_path: str):
         'MESSAGE_PROCESSING_CPU_THRESHOLD': MESSAGE_PROCESSING_CPU_THRESHOLD, 
         'SIMULATION_TIME': SIMULATION_TIME,
         'ACTIVATE_AUCTION': int(ACTIVATE_AUCTION),
-        'CLOUD_LATENCY': CLOUD_LATENCY,
         'PROCESS_MESSAGE_LEADING_ZEROS': PROCESS_MESSAGE_LEADING_ZEROS,
         'PROCESS_MESSAGE_FUNCTION_REPEAT': PROCESS_MESSAGE_FUNCTION_REPEAT,
         'WARMUP_TIME': WARMUP_TIME

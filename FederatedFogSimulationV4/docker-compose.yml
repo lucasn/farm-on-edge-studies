@@ -20,17 +20,6 @@ services:
     depends_on:
       - "mosquitto"
 
-  cloud:
-    build: cloud/
-    networks:
-      - fog-network
-    environment:
-      - CLOUD_LATENCY=${CLOUD_LATENCY}
-      - PROCESS_MESSAGE_FUNCTION_REPEAT=${PROCESS_MESSAGE_FUNCTION_REPEAT}
-      - PROCESS_MESSAGE_LEADING_ZEROS=${PROCESS_MESSAGE_LEADING_ZEROS}
-    depends_on:
-      - "mosquitto"
-
   mosquitto:
     container_name: mosquitto
     image: eclipse-mosquitto:2
@@ -64,7 +53,6 @@ services:
       - SIMULATION_TIME=${SIMULATION_TIME}
       - WARMUP_TIME=${WARMUP_TIME}
       - ACTIVATE_AUCTION=${ACTIVATE_AUCTION}
-      - CLOUD_LATENCY=${CLOUD_LATENCY}
       - PROCESS_MESSAGE_LEADING_ZEROS=${PROCESS_MESSAGE_LEADING_ZEROS}
       - PROCESS_MESSAGE_FUNCTION_REPEAT=${PROCESS_MESSAGE_FUNCTION_REPEAT}
     volumes:

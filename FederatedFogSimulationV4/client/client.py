@@ -7,11 +7,14 @@ from datetime import datetime
 from json import dumps, loads
 import threading
 from socket import gethostbyname
+import pprint
 
 QNT_CLIENTS = int(os.environ['QUANTITY_CLIENTS'])
 QNT_FOGS = int(os.environ['QUANTITY_FOGS'])
 
 messages_sent_time = {}
+
+pp = pprint.PrettyPrinter()
 
 def main():
     client = mqtt.Client(clean_session=True)
@@ -37,7 +40,9 @@ def send_message(mqtt_client, client_id):
             'function_repeat': randint(5, 10),
             'route': [client_id],
             'time_in_fog': 0,
-            'time_in_cloud': 0
+            'time_in_cloud': 0,
+            'ttl': 1,
+            'times': [{'sent_time': time()}]
         }
         message_topic = f'fog_{selected_fog}'
 
@@ -67,16 +72,18 @@ def on_message(client, userdata, message):
 
     if start_time is not None:
         response_time = time() - start_time
+        parsed_message['times'][0]['incoming_time'] = time() - parsed_message['times'][-1]['sent_time']
+        del parsed_message['times'][-1]['sent_time']
         print(f'Mensagem {parsed_message["id"]} recebida | Tempo de resposta: {response_time} s')
         print(f'Rota da mensagem: {parsed_message["route"]}')
-        print(f'Tempo em fogs: {parsed_message["time_in_fog"]} s')
-        print(f'Tempo na cloud: {parsed_message["time_in_cloud"]} s')
+        pp.pprint(f'Tempos: {parsed_message["times"]}')
 
         data_report_message = {
             'data': 'RESPONSE_TIME',
             'response_time': response_time,
             'timestamp': datetime.now().isoformat(),
-            'response_by_cloud': 'cloud' in parsed_message["route"]
+            'response_by_cloud': 'cloud' in parsed_message["route"],
+            'ttl': parsed_message['ttl']       
         }
 
         client.publish('data', dumps(data_report_message))

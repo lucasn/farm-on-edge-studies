@@ -1,8 +1,7 @@
 
 def generate_config(n_fogs, n_clients, auction):
-    return 'SIMULATION_TIME=20\n' + \
+    return 'SIMULATION_TIME=30\n' + \
             f'QUANTITY_CLIENTS={n_clients}\n' + \
-            'CLOUD_LATENCY=100\n' + \
             f'QUANTITY_FOGS={n_fogs}\n' + \
             'WARMUP_TIME=1\n' + \
             'MESSAGE_PROCESSING_CPU_THRESHOLD=75\n' + \
