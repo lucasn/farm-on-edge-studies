@@ -3,14 +3,13 @@ from datetime import datetime
 from picamera import PiCamera
 from time import sleep
 from subprocess import Popen, PIPE
-import RPi.GPIO as GPIO
 
 CAMERA_RESOLUTION = (1280, 720)
 CAPTURE_FORMAT = 'jpeg'
 CAPTURE_PERIOD = 15
 
-local_dir = '/home/pi/projects/SavePictures/images'
-usb_mount_dir = '/home/pi/projects/SavePictures/usb'
+local_dir = './images'
+usb_mount_dir = './usb'
 logs_path = './logs.txt'
 
 def main():
@@ -56,7 +55,10 @@ def mount_and_copy():
         return
 
     if stdout:
-        process = Popen(['sudo', 'mount', '/dev/sda1', usb_mount_dir], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        stdout_line = stdout.decode('utf-8').split()
+        disk = stdout_line[1][:-1]
+    
+        process = Popen(['sudo', 'mount', disk, usb_mount_dir], stdin=PIPE, stdout=PIPE, stderr=PIPE)
         stdout, stderr = process.communicate()
 
         if stderr:
@@ -64,7 +66,7 @@ def mount_and_copy():
             write_log(stderr.decode('utf-8'), 'ERROR')
             return
 
-        if not os.path.exists(usb_mount_dir + '/images'):
+        if not os.path.exists(usb_mount_dir + '/images/'):
             process = Popen(['sudo', 'mkdir', usb_mount_dir + '/images'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
             stdout, stderr = process.communicate()
 
