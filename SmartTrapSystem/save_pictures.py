@@ -25,6 +25,7 @@ def main():
         file_path = f'{ local_dir }/{ filename }'
 
         try:
+            # Taking picture
             camera.capture(file_path, format=CAPTURE_FORMAT)
         except Exception as e:
             write_log(e, 'ERROR')

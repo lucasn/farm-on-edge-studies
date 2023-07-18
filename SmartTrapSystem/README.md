@@ -1,0 +1,2 @@
+# Smart Trap System
+This is the latest version of the embedded code to capture the images of the insects inside the trap to generate the database for the computer vision model. The system saves the images to an USB drive connected to the Raspberry Pi. If there's not an USB connected, the images are saved in the Raspberry storage and moved to the USB when connected.

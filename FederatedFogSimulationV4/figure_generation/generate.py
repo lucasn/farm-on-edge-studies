@@ -6,6 +6,7 @@ def main():
     is_both = input("Gerar gráficos com leilão e sem leilão: [S/N] ").lower()
 
     if is_both == 's':
+        print('Not implemented yet')
         pass
     elif is_both == 'n':
         results_path = input("Diretório de resultados: ")
