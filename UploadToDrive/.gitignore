@@ -1,5 +1,6 @@
 env
 __pycache__
-images/
+*.png
+*.jpeg
 credentials.json
 settings.yaml
