@@ -30,6 +30,7 @@ def main():
         except Exception as e:
             write_log(e, 'ERROR')
 
+        # Mounting the USB drive if exists and copying the images from the images folder
         mount_and_copy()
 
         print('Pictures saved succesfully')
