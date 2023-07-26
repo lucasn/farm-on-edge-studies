@@ -2,3 +2,6 @@ env
 images/
 usb/
 logs.txt
+settings.yaml
+credentials.json
+__pycache__

@@ -3,6 +3,9 @@ from datetime import datetime
 from picamera import PiCamera
 from time import sleep
 from subprocess import Popen, PIPE
+from urllib import request
+
+from drive.DriveClient import DriveClient
 
 CAMERA_RESOLUTION = (1280, 720)
 CAPTURE_FORMAT = 'jpeg'
@@ -10,7 +13,12 @@ CAPTURE_PERIOD = 15
 
 local_dir = './images'
 usb_mount_dir = './usb'
+usb_images_dir = f'{usb_mount_dir}/images'
 logs_path = './logs.txt'
+
+upload_dir = 'teste'
+
+usb_mounted = False
 
 def main():
     write_log('Starting script...')
@@ -30,43 +38,60 @@ def main():
         except Exception as e:
             write_log(e, 'ERROR')
 
+        # Uploading images to Google Drive if internet avaliable
+        if is_connected_to_internet():
+            upload_to_drive()
+        
         # Mounting the USB drive if exists and copying the images from the images folder
-        mount_and_copy()
+        else:
+            mount_and_copy()
 
         print('Pictures saved succesfully')
         sleep(CAPTURE_PERIOD - 5)
         print('Taking picture and saving files, do not remove storage')
         sleep(5)
 
+def upload_to_drive():
+    try:
+        drive = DriveClient()
+
+    except Exception as e:
+        write_log('Error while connecting to Drive', 'ERROR')
+        write_log(e, 'ERROR')
+    
+    images = os.listdir(local_dir)
+
+    for image in images:
+        image_path = f'{local_dir}/{image}'
+        try:
+            drive.upload(upload_dir, image, image_path)
+            os.remove(image_path)
+
+        except Exception as e:
+            write_log('Error while uploading images from local directory', 'ERROR')
+            write_log(e, 'ERROR')
+
+
+    if mount() and os.path.exists(usb_images_dir):
+        images = os.listdir(usb_images_dir)
+
+        for image in images:
+            image_path = f'{usb_images_dir}/{image}'
+            try:
+                drive.upload(upload_dir, image, image_path)
+                process = Popen(['sudo', 'rm', image_path], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+                _, stderr = process.communicate()
+
+                if stderr:
+                    raise Exception(stderr.decode('utf-8'))
+                
+            except Exception as e:
+                write_log('Error while uploading images from USB drive', 'ERROR')
+                write_log(e, 'ERROR')
+
 
 def mount_and_copy():
-    process = Popen(['sudo', 'fdisk', '-l'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    stdout, stderr = process.communicate(b'pi\n')
-
-    if stderr:
-        write_log(f'Error while running fdisk', 'ERROR')
-        write_log(stderr.decode('utf-8'), 'ERROR')
-        return
-
-    process = Popen(['grep', '/dev/sd'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-    stdout, stderr = process.communicate(stdout)
-
-    if stderr:
-        write_log(f'Error while running grep', 'ERROR')
-        write_log(stderr.decode('utf-8'), 'ERROR')
-        return
-
-    if stdout:
-        stdout_line = stdout.decode('utf-8').split()
-        disk = stdout_line[1][:-1]
-    
-        process = Popen(['sudo', 'mount', disk, usb_mount_dir], stdin=PIPE, stdout=PIPE, stderr=PIPE)
-        stdout, stderr = process.communicate()
-
-        if stderr:
-            write_log(f'Error while running mount', 'ERROR')
-            write_log(stderr.decode('utf-8'), 'ERROR')
-            return
+    if mount():
 
         if not os.path.exists(usb_mount_dir + '/images/'):
             process = Popen(['sudo', 'mkdir', usb_mount_dir + '/images'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
@@ -86,12 +111,50 @@ def mount_and_copy():
                 write_log(f'Error while running mv', 'ERROR')
                 write_log(stderr.decode('utf-8'), 'ERROR')
 
-        process = Popen(['sudo', 'umount', usb_mount_dir], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+        umount()
+
+
+def mount() -> bool:
+    process = Popen(['sudo', 'fdisk', '-l'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = process.communicate(b'pi\n')
+
+    if stderr:
+        write_log(f'Error while running fdisk', 'ERROR')
+        write_log(stderr.decode('utf-8'), 'ERROR')
+        return False
+
+    process = Popen(['grep', '/dev/sd'], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = process.communicate(stdout)
+
+    if stderr:
+        write_log(f'Error while running grep', 'ERROR')
+        write_log(stderr.decode('utf-8'), 'ERROR')
+        return False
+
+    if stdout:
+        stdout_line = stdout.decode('utf-8').split()
+        disk = stdout_line[1][:-1]
+    
+        process = Popen(['sudo', 'mount', disk, usb_mount_dir], stdin=PIPE, stdout=PIPE, stderr=PIPE)
         stdout, stderr = process.communicate()
 
         if stderr:
-            write_log(f'Error while running umount', 'ERROR')
+            write_log(f'Error while running mount', 'ERROR')
             write_log(stderr.decode('utf-8'), 'ERROR')
+            return False
+        
+        return True
+    
+    return False
+        
+
+def umount():
+    process = Popen(['sudo', 'umount', usb_mount_dir], stdin=PIPE, stdout=PIPE, stderr=PIPE)
+    stdout, stderr = process.communicate()
+
+    if stderr:
+        write_log(f'Error while running umount', 'ERROR')
+        write_log(stderr.decode('utf-8'), 'ERROR')
 
 
 def write_log(message, type='INFO'):
@@ -113,6 +176,12 @@ def get_save_dir():
     
     return save_dir
 
+def is_connected_to_internet() -> bool:
+    try:
+        request.urlopen('http://www.google.com/', timeout=1)
+        return True
+    except:
+        return False
 
 if __name__=="__main__":
     main()
