@@ -11,14 +11,13 @@ CAMERA_RESOLUTION = (1280, 720)
 CAPTURE_FORMAT = 'jpeg'
 CAPTURE_PERIOD = 15
 
-local_dir = './images'
-usb_mount_dir = './usb'
+dir_path = os.path.dirname(os.path.realpath(__file__))
+local_dir = f'{dir_path}/images'
+usb_mount_dir = f'{dir_path}/usb'
 usb_images_dir = f'{usb_mount_dir}/images'
-logs_path = './logs.txt'
+logs_path = f'{dir_path}/logs.txt'
 
-upload_dir = 'teste'
-
-usb_mounted = False
+upload_dir = 'Fotos Armadilhas'
 
 def main():
     write_log('Starting script...')
@@ -88,6 +87,8 @@ def upload_to_drive():
             except Exception as e:
                 write_log('Error while uploading images from USB drive', 'ERROR')
                 write_log(e, 'ERROR')
+        
+        umount()
 
 
 def mount_and_copy():
