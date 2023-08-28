@@ -3,15 +3,21 @@ from pydrive.auth import GoogleAuth
 from pydrive.drive import GoogleDrive
 
 dir_path = os.path.dirname(os.path.realpath(__file__))
-
 class DriveClient:
     def __init__(self):
         if not os.path.isfile(f'{dir_path}/settings.yaml'):
             raise Exception("[ERROR] settings.yaml not found")
         
         self.__auth = GoogleAuth(settings_file=f'{dir_path}/settings.yaml')
-        if not os.path.isfile(f'{dir_path}/credentials.json'):
+        credentials_path = f'{dir_path}/credentials.json'
+        if not os.path.isfile(credentials_path):
             raise Exception("[ERROR] Credentials not found")
+
+
+        self.__auth.LoadCredentialsFile(credentials_path)
+        if self.__auth.access_token_expired:
+            self.__auth.Refresh()
+
         self.__drive = GoogleDrive(self.__auth)
 
         
